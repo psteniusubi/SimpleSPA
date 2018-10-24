@@ -1,0 +1,96 @@
+﻿<!DOCTYPE html>
+
+<script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
+<script type="text/javascript" src="/js/oidc.js"></script>
+<script type="text/javascript">
+
+    var issuer = "https://login.example.ubidemo.com/uas";
+    var access_token = null;
+    var id_token = null;
+
+    var api_endpoint = "http://localhost:5001/simple"
+
+    function invokeApi(access_token) {
+        var headers = (access_token != null)
+            ? { "Authorization": "Bearer " + access_token }
+            : {};
+        return fetch(api_endpoint, { mode: "cors", cache: "no-store", headers: headers })
+            .then(function (response) {
+                return response.ok
+                    ? response.json()
+                    : Promise.reject(response);
+            });
+    }
+
+    $(function () {
+
+        console.log("access_token=" + access_token);
+
+        // receives notifications when fragment part changes
+        window.addEventListener("hashchange", function () {
+            console.log("hashchange hash=" + location.hash + ", access_token=" + access_token);
+            $("#id_token").text(id_token);
+        });
+
+        // click Login button sends browser to Ubisecure SSO
+        $("#login").click(function () {
+            access_token = id_token = null;
+            $("#id_token").text("");
+            $("#api").text("");
+            getConfiguration(issuer)
+                .then(config => sendAuthenticationRequest(config, "public", "openid api"));
+        });
+
+        // click API button invokes API request with access token in Authorization header
+        $("#invoke").click(function () {
+            $("#api").text("");
+            invokeApi(access_token)
+                .then(function (data) {
+                    $("#api").text(JSON.stringify(data));
+                })
+                .catch(function (error) {
+                    if (error.status == 401) {
+                        $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate"));
+                    } else {
+                        $("#api").text("Make sure API is running. Details: " + error);
+                    }
+                });
+        });
+
+        // the page was navigated to with query parameters (/spa.html?code=abcd1234)
+        // this copies query string into fragment part, which is easier to process in context of SPA 
+        if (location.search.match(/^\?(.*)$/)) {
+            console.log("rewrite location.search");
+            location.replace("/spa.html#" + RegExp.$1);
+            return;
+        }
+
+        // the frament part contains authorization code
+        // this invokes token request with authorization code to fetch access_token and id_token 
+        // the tokens are saved into javascript variables
+        // when complete fragment part is set to empty string
+        if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
+            var code = RegExp.$2;
+            console.log("rewrite location.hash code=" + code);
+            getConfiguration(issuer)
+                .then(config => invokeTokenRequest(config, "public", "public", code))
+                .then(function (response) {
+                    console.log("token response " + JSON.stringify(response));
+                    access_token = response.access_token;
+                    id_token = response.id_token;
+                    location.hash = "";
+                });
+        }
+
+    });
+</script>
+
+<h1>Login</h1>
+<p><input type="button" id="login" value="Login" /></p>
+<p>ID Token</p>
+<p><textarea id="id_token" rows="8" cols="80"></textarea></p>
+
+<h1>API</h1>
+<p><input type="button" id="invoke" value="Invoke API" /></p>
+<p>API Response</p>
+<p><textarea id="api" rows="6" cols="80"></textarea></p>
