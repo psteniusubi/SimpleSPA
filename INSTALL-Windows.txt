@@ -1,0 +1,6 @@
+### Apache 2.4 VC15 Windows Binaries and Modules ###
+
+https://www.apachelounge.com/download/
+
+https://home.apache.org/~steffenal/VC15/binaries/httpd-2.4.37-win64-VC15.zip
+
