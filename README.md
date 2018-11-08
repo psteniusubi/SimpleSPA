@@ -65,13 +65,15 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 ### Receive authorization code
 
 ```javascript
+    document.addEventListener("DOMContentLoaded", function () {
         if (location.search.match(/^\?(.*)$/)) {
             location.replace("/spa.html#" + RegExp.$1);
-            return;
         }
+    });
 ```
 
 ```javascript
+    document.addEventListener("DOMContentLoaded", function () {
         if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
             var code = RegExp.$2;
             getConfiguration(issuer)
@@ -89,6 +91,7 @@ getConfiguration("https://login.example.ubidemo.com/uas")
                     location.hash = state;
                 });
         }
+    });
 ```
 
 ### Invoke token request
