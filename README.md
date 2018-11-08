@@ -129,9 +129,11 @@ The relevant file is
 1. Clone this repository
 1. Install ASP.NET Core runtime from https://www.microsoft.com/net/download
 1. Use `dotnet run` command run ASP.NET Core server
+1. Navigate to http://localhost:5000/spa.html
 
 ### With Apache HTTP server
 
 1. Clone this repository
 1. Install Apache HTTP server
 1. Use `./run-apache.sh` on Linux or `run-apache.cmd` on Windows to start Apache HTTP server
+1. Navigate to http://localhost:5000/spa.html
