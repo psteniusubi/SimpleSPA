@@ -74,7 +74,7 @@ This code copies query string part from page uri into fragment part. This is nee
     });
 ```
 
-This code looks for an authorization code in the fragment part of the page uri. If a code is found then a token request invoked and the returned access token and id token are set into javascript variables. The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
+This code looks for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked and the returned access token and id token are set into javascript variables. The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
 
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
