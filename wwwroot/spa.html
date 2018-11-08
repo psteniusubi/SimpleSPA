@@ -79,6 +79,41 @@
     });
 
     document.addEventListener("DOMContentLoaded", function () {
+        // the page was navigated to with query parameters (/spa.html?code=abcd1234)
+        // this copies query string into fragment part, which is easier to process in single page context 
+        if (location.search.match(/^\?(.*)$/)) {
+            console.log("rewrite location.search");
+            location.replace("/spa.html#" + RegExp.$1);
+        }
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // looking for fragment part that contains authorization code
+        // if code parameter is found, invoke token request with authorization code to fetch access_token and id_token
+        // the tokens are saved into javascript variables
+        // when complete fragment part is set to empty string or value in state parameter
+        if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
+            var code = RegExp.$2;
+            console.log("rewrite location.hash code=" + code);
+            getConfiguration(issuer)
+                .then(config => invokeTokenRequest(config, "public", "public", code))
+                .then(function (response) {
+                    console.log("token response " + JSON.stringify(response));
+                    var state = "";
+                    if (location.hash.match(/(^|#|&)state=([^&]*)($|&)/)) {
+                        var t = decodeURIComponent(RegExp.$2);
+                        if (t.startsWith("/")) {
+                            state = t;
+                        }
+                    }
+                    access_token = response.access_token;
+                    id_token = response.id_token;
+                    location.hash = state;
+                });
+        }
+    });
+
+    $(function () {
 
         console.log("access_token=" + access_token);
 
@@ -107,39 +142,8 @@
                 });
         });
 
-        // the page was navigated to with query parameters (/spa.html?code=abcd1234)
-        // this copies query string into fragment part, which is easier to process in context of SPA
-        if (location.search.match(/^\?(.*)$/)) {
-            console.log("rewrite location.search");
-            location.replace("/spa.html#" + RegExp.$1);
-            return;
-        }
-
-        // the frament part contains authorization code
-        // this invokes token request with authorization code to fetch access_token and id_token
-        // the tokens are saved into javascript variables
-        // when complete fragment part is set to empty string
-        if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
-            var code = RegExp.$2;
-            console.log("rewrite location.hash code=" + code);
-            getConfiguration(issuer)
-                .then(config => invokeTokenRequest(config, "public", "public", code))
-                .then(function (response) {
-                    console.log("token response " + JSON.stringify(response));
-                    var state = "";
-                    if (location.hash.match(/(^|#|&)state=([^&]*)($|&)/)) {
-                        var t = decodeURIComponent(RegExp.$2);
-                        if (t.startsWith("/")) {
-                            state = t;
-                        }
-                    }
-                    access_token = response.access_token;
-                    id_token = response.id_token;
-                    location.hash = state;
-                });
-        }
-
     });
+
 </script>
 
 <h1>Login</h1>
