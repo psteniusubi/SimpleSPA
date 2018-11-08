@@ -64,6 +64,8 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 
 ### Receive authorization code
 
+This code copies query string part from page uri into fragment part. This is needed if the OpenID Provider does not support fragment response mode. 
+
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
         if (location.search.match(/^\?(.*)$/)) {
@@ -71,6 +73,8 @@ getConfiguration("https://login.example.ubidemo.com/uas")
         }
     });
 ```
+
+This code looks for an authorization code in the fragment part of the page uri. If a code is found then a token request invoked and the returned access token and id token are set into javascript variables. The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
 
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
