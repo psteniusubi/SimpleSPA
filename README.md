@@ -14,6 +14,9 @@ The relevant file is
 
 ### Get provider metadata
 
+This method fetches the OpenID Provider metadata configuration information. The method returns a Promise that receives a Json object. The issuer parameter is the name of the OpenID Provider. 
+
+
 ```javascript
     function getConfiguration(issuer) {
         return fetch(issuer + "/.well-known/openid-configuration")
@@ -25,7 +28,13 @@ The relevant file is
     }
 ```
 
+Example
+
+```getConfiguration("https://login.example.ubidemo.com/uas")```
+
 ### Send authentication request
+
+
 
 ```javascript
     function sendAuthenticationRequest(configuration, client_id, scope) {
