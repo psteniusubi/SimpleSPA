@@ -31,6 +31,7 @@ Example
 
 ```javascript
 getConfiguration("https://login.example.ubidemo.com/uas")
+    .then(config => { ... });
 ```
 
 ### Send authentication request
