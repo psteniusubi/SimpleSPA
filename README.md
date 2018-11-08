@@ -11,15 +11,15 @@ The relevant files are
 * [spa.html](wwwroot/spa.html)
 * [oidc.js](wwwroot/js/oidc.js)
 
-### Sending an authentication request
+### Send authentication request
 
-### Receiving authorization code
+### Receive authorization code
 
-### Invoking token request
+### Invoke token request
 
-### Validating ID Token integrity
+### Validate ID Token integrity
 
-### Invoking an OAuth protected API
+### Invoke OAuth protected API
 
 ## Running the application
 
