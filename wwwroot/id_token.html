@@ -4,67 +4,114 @@
 <script type="text/javascript" src="/js/encoding.js"></script>
 <script type="text/javascript">
 
-function getConfiguration() {
-    return fetch("https://login.example.ubidemo.com/uas/.well-known/openid-configuration")
-        .then(function (response) {
-            return response.json();
-        });
-}
+    //var issuer = "https://accounts.google.com";
+    var issuer = "https://login.example.ubidemo.com/uas";
 
-function decodeBase64(text) {
-    text = text.replace(/_/g, "/").replace(/-/g, "+");
-    text += "=".repeat(4 - text.length % 4);
-    //console.log("decodeBase64: " + text);    
-    var raw = atob(text);
-    var buf = new Uint8Array(raw.length);
-    for(var i in raw) {
-        buf[i] = raw.charCodeAt(i);
+    function getConfiguration(issuer) {
+        return fetch(issuer + "/.well-known/openid-configuration")
+            .then(function (response) {
+                return response.json();
+            });
     }
-    //console.log("buf = " + buf);
-    return buf;
-}
 
-$(function() {    
+    function getJWKS(config) {
+        var jwks_uri = config.jwks_uri;
+        return fetch(jwks_uri)
+            .then(function (response) {
+                return response.ok
+                    ? response.json()
+                    : Promise.reject(response);
+            });
+    }
 
-    getConfiguration()
-        .then(function (data) {
-            var jwks_uri = data.jwks_uri;
-            return fetch(jwks_uri);
-        })
-        .then(function (response) {
-            return response.json();
-        })
-        .then(function (data) {
-            $("#jwks").text(JSON.stringify(data));
-            var id_token = $("#id_token").val();
-            console.log("id_token = " + id_token);
-            for (var i in data.keys) {
-                var jwk = data.keys[i];
-                jwk.n = "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww";
-                //console.log(JSON.stringify(jwk));
-                var RS256 = {   
-                    name: "RSASSA-PKCS1-v1_5",
-                    hash: { name: "SHA-256" }, 
-                };
-                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
-                    .then(function (key) {
-                        console.log("importKey = " + key);
-                        var jws = id_token.split(".");
-                        console.log(jws);
-                        var signature = decodeBase64(jws[2]);
-                        console.log(signature);
-                        var text2verify = new TextEncoder().encode(jws[0] + "." + jws[1]);
-                        console.log(text2verify);
-                        return window.crypto.subtle.verify(RS256, key, signature, text2verify);
-                    })
-                    .then(function (result) {
-                        console.log("result " + result);
-                    })
-                    .catch(e => console.log("error " + e));
-            }
-        });
+    function decodeBase64(text) {
+        text = text.replace(/_/g, "/").replace(/-/g, "+");
+        text += "=".repeat(4 - text.length % 4);
+        var raw = atob(text);
+        return Uint8Array.from(raw, t => t.charCodeAt(0));
+    }
 
-});
+    function isSign(jwk) {
+        return true;
+    }
+
+    function toJwk(jwk) {
+        return {
+            "kty": jwk.kty,
+            "n": jwk.n,
+            "e": jwk.e
+        };
+    }
+
+    $(function () {
+
+        var p = getConfiguration(issuer)
+            .then(getJWKS)
+            .then(function (jwks) {
+                $("#jwks").text(JSON.stringify(jwks));
+
+                var id_token = $("#id_token").val();
+                console.log("id_token = " + id_token);
+                var jws = id_token.split(".");
+                console.log("jws " + jws);
+                var claims = decodeBase64(jws[1]);
+                claims = new TextDecoder("utf-8").decode(claims);
+                claims = JSON.parse(claims);
+                console.log("claims " + JSON.stringify(claims));
+                var signature = decodeBase64(jws[2]);
+                console.log("signature " + signature);
+                var text2verify = new TextEncoder().encode(jws[0] + "." + jws[1]);
+                console.log("text2verify " + text2verify);
+
+                var negative = Promise.resolve({
+                    "valid": false,
+                    "id_token": claims
+                });
+
+                var keys = jwks.keys.filter(isSign).map(toJwk);
+                var todo = keys.length;
+
+                if (todo === 0) {
+                    return negative;
+                }
+
+                return new Promise(resolve => {
+                    for (var i in keys) {
+                        var jwk = keys[i];
+                        //jwk.n = "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww";
+                        //console.log(JSON.stringify(jwk));
+                        var RS256 = {
+                            name: "RSASSA-PKCS1-v1_5",
+                            hash: { name: "SHA-256" },
+                        };
+                        window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
+                            .then(function (key) {
+                                console.log("importKey = " + key);
+                                return window.crypto.subtle.verify(RS256, key, signature, text2verify);
+                            })
+                            .then(function (result) {
+                                console.log("result i=" + i + " todo=" + todo + " " + result);
+                                if (result) {
+                                    todo = -1;
+                                    resolve({
+                                        "valid": true,
+                                        "id_token": claims
+                                    });
+                                } else if (--todo === 0) {
+                                    resolve(negative);
+                                }
+                            })
+                            .catch(function (result) {
+                                console.log("error i=" + i + " todo=" + todo + " " + result);
+                                if (--todo === 0) {
+                                    resolve(negative);
+                                }
+                            });
+                    }
+                });
+            });
+        p.then(t => console.log("then " + JSON.stringify(t)));
+    });
 
 </script>
 
