@@ -12,6 +12,19 @@ The relevant file is
 
 * [spa.html](wwwroot/spa.html)
 
+### Get provider metadata
+
+```javascript
+    function getConfiguration(issuer) {
+        return fetch(issuer + "/.well-known/openid-configuration")
+            .then(function (response) {
+                return response.ok
+                    ? response.json()
+                    : Promise.reject(response);
+            });
+    }
+```
+
 ### Send authentication request
 
 ```javascript
