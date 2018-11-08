@@ -6,6 +6,8 @@ This project is hosted in a ASP.NET Core Web Application.
 However only the web server function of ASP.NET is used, there is no server-side logic. 
 This project also runs as-is on Apache HTTP server or any other web server that serves static resources.
 
+The code for the API invoked by this application is hosted in [SimpleAPI](../../../SimpleAPI)
+
 The relevant files are
 
 * [spa.html](wwwroot/spa.html)
