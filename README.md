@@ -29,7 +29,9 @@ This method fetches the OpenID Provider metadata configuration information. The 
 
 Example
 
-```getConfiguration("https://login.example.ubidemo.com/uas")```
+```javascript
+getConfiguration("https://login.example.ubidemo.com/uas")
+```
 
 ### Send authentication request
 
@@ -58,7 +60,7 @@ Example
 ```javascript
 getConfiguration("https://login.example.ubidemo.com/uas")
     .then(config => sendAuthenticationRequest(config, "public", "openid"));
-``´    
+```
 
 ### Receive authorization code
 
