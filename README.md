@@ -27,10 +27,10 @@ The relevant files are
 
 1. Clone this repository
 1. Install ASP.NET Core runtime from https://www.microsoft.com/net/download
-1. Use `dotnet run` command to launch
+1. Use `dotnet run` command run ASP.NET Core server
 
 ### With Apache HTTP server
 
 1. Clone this repository
 1. Install Apache HTTP server
-1. Use `./run-apache.sh` on Linux and `run-apache.cmd` on Windows to start Apache
+1. Use `./run-apache.sh` on Linux and `run-apache.cmd` on Windows to start Apache HTTP server
