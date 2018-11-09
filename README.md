@@ -120,6 +120,27 @@ The following builds and invokes an OAuth authorization code grant token request
     }
 ```
 
+### Get provider keys
+
+```javascript
+    function getJWKS(config) {
+        var jwks_uri = config.jwks_uri;
+        return fetch(jwks_uri)
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
+    }
+```
+
+Example
+
+```javascript
+    getConfiguration(issuer)
+        .then(config => getJWKS(config))
+        .then(jwks => { ... });
+```
+
 ### Validate ID Token integrity
 
 ID Token is formatted as JWT, with three base64url encoded segments separated by "." character. The first part contains header, second part contains claims and final part is the signature which covers the first and second part.
