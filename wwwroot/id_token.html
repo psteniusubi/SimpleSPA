@@ -1,10 +1,8 @@
 <!DOCTYPE html>
 
 <script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
-<script type="text/javascript" src="/js/encoding.js"></script>
 <script type="text/javascript">
 
-    //var issuer = "https://accounts.google.com";
     var issuer = "https://login.example.ubidemo.com/uas";
 
     function getConfiguration(issuer) {
@@ -24,97 +22,115 @@
             });
     }
 
-    function decodeBase64(text) {
-        text = text.replace(/_/g, "/").replace(/-/g, "+");
-        text += "=".repeat(4 - text.length % 4);
-        var raw = atob(text);
-        return Uint8Array.from(raw, t => t.charCodeAt(0));
+    function atobUrlSafe(text) {
+        if (text == null) {
+            return null;
+        }
+        text = text
+            .replace(/\s+/g, "")
+            .replace(/_/g, "/")
+            .replace(/-/g, "+");
+        if (text.length === 0) {
+            return "";
+        }
+        text += "==".substr(0, text.length % 4);
+        return atob(text);
     }
 
-    function isSign(jwk) {
-        return true;
-    }
+    function decodeJWT(jwks, jwt) {
 
-    function toJwk(jwk) {
-        return {
-            "kty": jwk.kty,
-            "n": jwk.n,
-            "e": jwk.e
-        };
+        var jws = jwt.split(".");
+
+        var header = atobUrlSafe(jws[0]);
+        header = JSON.parse(header);
+
+        var claims = atobUrlSafe(jws[1]);
+        claims = JSON.parse(claims);
+
+        var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
+
+        var signature = atobUrlSafe(jws[2]);
+        signature = Uint8Array.from(signature, t => t.charCodeAt(0));
+
+        var negative = Promise.resolve({
+            "header": header,
+            "claims": claims,
+            "signature": false,
+            "jwk": null,
+        });
+
+        function isSig(jwk) {
+            return (jwk.use == null || jwk.use == "sig");
+        }
+
+        function toJwk(jwk) {
+            return {
+                "kty": jwk.kty,
+                "n" : "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww",
+                //"n": jwk.n,
+                "e": jwk.e
+            };
+        }
+
+        var keys = jwks.keys
+            .filter(isSig)
+            .map(toJwk);
+
+        var todo = keys.length;
+        if (todo === 0) {
+            return negative;
+        }
+
+        return new Promise(resolve => {
+            for (var i in keys) {
+                var jwk = keys[i];
+                var RS256 = {
+                    name: "RSASSA-PKCS1-v1_5",
+                    hash: { name: "SHA-256" },
+                };
+                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
+                    .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
+                    .then(result => {
+                        if (result) {
+                            todo = -1;
+                            resolve({
+                                "header": header,
+                                "claims": claims,
+                                "signature": true,
+                                "jwk": jwk,
+                            });
+                        } else {
+                            if (--todo === 0) {
+                                resolve(negative);
+                            }
+                        }
+                    })
+                    .catch(result => {
+                        console.warn("decodeJWT " + result);
+                        if (--todo === 0) {
+                            resolve(negative);
+                        }
+                    });
+            }
+        });
+
     }
 
     $(function () {
 
-        var p = getConfiguration(issuer)
+        var id_token = $("#id_token").val();
+
+        getConfiguration(issuer)
             .then(getJWKS)
-            .then(function (jwks) {
-                $("#jwks").text(JSON.stringify(jwks));
+            .then(jwks => decodeJWT(jwks, id_token))
+            .then(jwt => $("#claims").text(JSON.stringify(jwt, null, 2)));
 
-                var id_token = $("#id_token").val();
-                console.log("id_token = " + id_token);
-                var jws = id_token.split(".");
-                console.log("jws " + jws);
-                var claims = decodeBase64(jws[1]);
-                claims = new TextDecoder("utf-8").decode(claims);
-                claims = JSON.parse(claims);
-                console.log("claims " + JSON.stringify(claims));
-                var signature = decodeBase64(jws[2]);
-                console.log("signature " + signature);
-                var text2verify = new TextEncoder().encode(jws[0] + "." + jws[1]);
-                console.log("text2verify " + text2verify);
-
-                var negative = Promise.resolve({
-                    "valid": false,
-                    "id_token": claims
-                });
-
-                var keys = jwks.keys.filter(isSign).map(toJwk);
-                var todo = keys.length;
-
-                if (todo === 0) {
-                    return negative;
-                }
-
-                return new Promise(resolve => {
-                    for (var i in keys) {
-                        var jwk = keys[i];
-                        //jwk.n = "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww";
-                        //console.log(JSON.stringify(jwk));
-                        var RS256 = {
-                            name: "RSASSA-PKCS1-v1_5",
-                            hash: { name: "SHA-256" },
-                        };
-                        window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
-                            .then(function (key) {
-                                console.log("importKey = " + key);
-                                return window.crypto.subtle.verify(RS256, key, signature, text2verify);
-                            })
-                            .then(function (result) {
-                                console.log("result i=" + i + " todo=" + todo + " " + result);
-                                if (result) {
-                                    todo = -1;
-                                    resolve({
-                                        "valid": true,
-                                        "id_token": claims
-                                    });
-                                } else if (--todo === 0) {
-                                    resolve(negative);
-                                }
-                            })
-                            .catch(function (result) {
-                                console.log("error i=" + i + " todo=" + todo + " " + result);
-                                if (--todo === 0) {
-                                    resolve(negative);
-                                }
-                            });
-                    }
-                });
-            });
-        p.then(t => console.log("then " + JSON.stringify(t)));
     });
 
 </script>
 
 <input type="hidden" id="id_token" value="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJwZXR0ZXJpLnN0ZW5pdXNAdWJpc2VjdXJlLmNvbSIsImlzcyI6Imh0dHBzOi8vbG9naW4uZXhhbXBsZS51YmlkZW1vLmNvbS91YXMiLCJhdWQiOlsicHVibGljIl0sImV4cCI6MTUzOTg2MjMwMCwiaWF0IjoxNTM5ODU4NzAxLCJhdXRoX3RpbWUiOjE1Mzk4NTg3MDAsImFtciI6WyJodHRwczovL2xvZ2luLmV4YW1wbGUudWJpZGVtby5jb20vdWFzL3NhbWwyL25hbWVzL2FjL3NtdHAuMSJdLCJhenAiOiJwdWJsaWMiLCJzZXNzaW9uX2luZGV4IjoiX2RkZGZjNGNlYmZhYjZmODZhMTMxYzhhZWFhN2QyNTM0MzExZTY2YjYifQ.ZPuCJEAgKQQeujz48tQ5gdPAF8dxH_oI2OIX60TOqX64zPtfBjNsWEkMASqtOujoCAvsFc2Twv2RgKX2SOd75hL3VLETwGMhZTcM4KbONhtWiiuPG_9XZ3EdKlpkJhZG9cyCGuHrx7Rj9pGizm_kPrVTA4CrU1a2v7xvvCR0gN5SFuB8flInW0nH5rIh4v4tLMKcCIsTpWyHY8YVK4dv3EKi7aKMHctCIx3CBFlzFlFMZyYyDXwtw1ObuG1BNUUBmEklBXK0kWAFH4NA0FNCC_S2TQ6Kjei0ZbrC_C_FiQPz79iem9y3RSE-mzBiJmGKh4vJ3M-VO_7Q72PHGwNyNg" />
 
-<p id="jwks"></p>
+<p id="jwks" style="white-space: pre"></p>
+
+<p id="claims" style="white-space: pre"></p>

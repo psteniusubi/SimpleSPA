@@ -5,17 +5,67 @@
 
     var issuer = "https://login.example.ubidemo.com/uas";
     var access_token = null;
-    var id_token = null;
+    var id_token_jwt = null;
 
     var api_endpoint = "http://localhost:5001/simple"
 
     function getConfiguration(issuer) {
         return fetch(issuer + "/.well-known/openid-configuration")
-            .then(function (response) {
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            });
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
+    }
+
+    function getJWKS(config) {
+        var jwks_uri = config.jwks_uri;
+        return fetch(jwks_uri)
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
+    }
+
+    function atobUrlSafe(text) {
+        if (text == null) {
+            return null;
+        }
+        text = text
+            .replace(/\s+/g, "")
+            .replace(/_/g, "/")
+            .replace(/-/g, "+");
+        if (text.length === 0) {
+            return "";
+        }
+        text += "==".substr(0, (4 - text.length % 4) % 4);
+        return atob(text);
+    }
+
+    function matchParam(qs, name, mapper = null) {
+        return new Promise(resolve => {
+            if (qs.startsWith("?")) {
+                qs = qs.substr(1);
+            } else if (qs.startsWith("#")) {
+                qs = qs.substr(1);
+            }
+            var re = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+            if (qs.match(re)) {
+                var s = decodeURIComponent(RegExp.$2);
+                if (mapper) {
+                    s = mapper(s);
+                }
+                if (s != null) {
+                    resolve(s);
+                }
+            } else {
+                if (mapper) {
+                    var s = mapper(null);
+                    if (s != null) {
+                        resolve(s);
+                    }
+                }
+            }
+        });
     }
 
     function sendAuthenticationRequest(configuration, client_id, scope) {
@@ -23,15 +73,15 @@
         authorization_request += "?response_type=code";
         authorization_request += "&scope=" + encodeURIComponent(scope);
         authorization_request += "&client_id=" + encodeURIComponent(client_id);
-        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + "/spa.html");
+        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
         if (location.hash.startsWith("#/")) {
             var state = location.hash.substr(1);
             authorization_request += "&state=" + encodeURIComponent(state);
         }
         var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
         authorization_request += "&nonce=" + encodeURIComponent(nonce);
-        window.sessionStorage.setItem("nonce", nonce);
-        location = authorization_request;
+        window.localStorage.setItem("nonce", nonce);
+        location.assign(authorization_request);
     }
 
     function invokeTokenRequest(configuration, client_id, client_secret, code) {
@@ -41,15 +91,13 @@
         body += "&code=" + encodeURIComponent(code);
         body += "&client_id=" + encodeURIComponent(client_id);
         body += "&client_secret=" + encodeURIComponent(client_secret);
-        body += "&redirect_uri=" + encodeURIComponent(location.origin + "/spa.html");
+        body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
         console.log("invokeTokenRequest body " + body);
         return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
-            .then(function (response) {
-                console.log("invokeTokenRequest httpResponse " + response.status);
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            })
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            )
             .then(function (response) {
                 console.log("invokeTokenRequest tokenResponse " + JSON.stringify(response));
                 return Promise.resolve(response);
@@ -60,30 +108,114 @@
             });
     }
 
+    function decodeJWT(jwks, jwt) {
+
+        console.log("decodeJWT " + jwt);
+
+        var jws = jwt.split(".");
+
+        var header = atobUrlSafe(jws[0]);
+        header = JSON.parse(header);
+
+        var claims = atobUrlSafe(jws[1]);
+        claims = JSON.parse(claims);
+
+        var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
+
+        var signature = atobUrlSafe(jws[2]);
+        signature = Uint8Array.from(signature, t => t.charCodeAt(0));
+
+        var negative = Promise.resolve({
+            "header": header,
+            "claims": claims,
+            "signature": false,
+            "jwk": null,
+        });
+
+        function isSig(jwk) {
+            return (jwk.use == null || jwk.use == "sig");
+        }
+
+        function toJwk(jwk) {
+            return {
+                "kty": jwk.kty,
+                "n": jwk.n,
+                "e": jwk.e
+            };
+        }
+
+        var keys = jwks.keys
+            .filter(isSig)
+            .map(toJwk);
+
+        var todo = keys.length;
+        if (todo === 0) {
+            return negative;
+        }
+
+        return new Promise(resolve => {
+            for (var i in keys) {
+                var jwk = keys[i];
+                var RS256 = {
+                    name: "RSASSA-PKCS1-v1_5",
+                    hash: { name: "SHA-256" },
+                };
+                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
+                    .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
+                    .then(result => {
+                        if (result) {
+                            todo = -1;
+                            resolve({
+                                "header": header,
+                                "claims": claims,
+                                "signature": true,
+                                "jwk": jwk,
+                            });
+                        } else {
+                            if (--todo === 0) {
+                                resolve(negative);
+                            }
+                        }
+                    })
+                    .catch(result => {
+                        console.warn("decodeJWT " + result);
+                        if (--todo === 0) {
+                            resolve(negative);
+                        }
+                    });
+            }
+        });
+
+    }
+
     function invokeApi(access_token) {
         var headers = (access_token != null)
             ? { "Authorization": "Bearer " + access_token }
             : {};
         return fetch(api_endpoint, { mode: "cors", cache: "no-store", headers: headers })
-            .then(function (response) {
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            });
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
     }
 
     // receives notifications when fragment part changes
     window.addEventListener("hashchange", function () {
         console.log("hashchange hash=" + location.hash + ", access_token=" + access_token);
-        $("#id_token").text(id_token);
+        $("#id_token").text(JSON.stringify(id_token_jwt.claims, null, 2));
+        $("#signature").text(id_token_jwt.signature === true ? "(signature verified)" : "(invalid signature)");
+        var n1 = id_token_jwt.claims.nonce;
+        var n2 = window.localStorage.getItem("nonce");
+        $("#nonce").text(n1 == n2 ? "(nonce verified)" : "(invalid nonce)");
+        window.localStorage.clear("nonce");
     });
 
     document.addEventListener("DOMContentLoaded", function () {
         // the page was navigated to with query parameters (/spa.html?code=abcd1234)
-        // this copies query string into fragment part, which is easier to process in single page context 
-        if (location.search.match(/^\?(.*)$/)) {
+        // this copies query string into fragment part, which is easier to process in single page context
+        if (location.search.startsWith("?")) {
             console.log("rewrite location.search");
-            location.replace("/spa.html#" + RegExp.$1);
+            location.replace(location.pathname + "#" + location.search.substr(1));
         }
     });
 
@@ -92,25 +224,20 @@
         // if code parameter is found, invoke token request with authorization code to fetch access_token and id_token
         // the tokens are saved into javascript variables
         // when complete fragment part is set to empty string or value in state parameter
-        if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
-            var code = RegExp.$2;
-            console.log("rewrite location.hash code=" + code);
-            getConfiguration(issuer)
-                .then(config => invokeTokenRequest(config, "public", "public", code))
-                .then(function (response) {
-                    console.log("token response " + JSON.stringify(response));
-                    var state = "";
-                    if (location.hash.match(/(^|#|&)state=([^&]*)($|&)/)) {
-                        var t = decodeURIComponent(RegExp.$2);
-                        if (t.startsWith("/")) {
-                            state = t;
-                        }
-                    }
-                    access_token = response.access_token;
-                    id_token = response.id_token;
-                    location.hash = state;
-                });
-        }
+        matchParam(location.hash, "code")
+            .then(code => getConfiguration(issuer)
+                .then(config => invokeTokenRequest(config, "public", "public", code)
+                    .then(response => getJWKS(config)
+                        .then(jwks => decodeJWT(jwks, response.id_token))
+                        .then(jwt => {
+                            access_token = response.access_token;
+                            id_token_jwt = jwt;
+                            matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
+                                .then(state => location.hash = state);
+                        })
+                    )
+                )
+            );
     });
 
     $(function () {
@@ -119,7 +246,7 @@
 
         // click Login button sends browser to Ubisecure SSO
         $("#login").click(function () {
-            access_token = id_token = null;
+            access_token = id_token_jwt = null;
             $("#id_token").text("");
             $("#api").text("");
             getConfiguration(issuer)
@@ -130,9 +257,7 @@
         $("#invoke").click(function () {
             $("#api").text("");
             invokeApi(access_token)
-                .then(function (data) {
-                    $("#api").text(JSON.stringify(data));
-                })
+                .then(data => $("#api").text(JSON.stringify(data, null, 2)))
                 .catch(function (error) {
                     if (error.status == 401) {
                         $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate"));
@@ -148,10 +273,10 @@
 
 <h1>Login</h1>
 <p><input type="button" id="login" value="Login" /></p>
-<p>ID Token</p>
+<p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
 <p><textarea id="id_token" rows="8" cols="80"></textarea></p>
 
 <h1>API</h1>
 <p><input type="button" id="invoke" value="Invoke API" /></p>
 <p>API Response</p>
-<p><textarea id="api" rows="6" cols="80"></textarea></p>
+<p><textarea id="api" rows="6" cols="80" style="white-space: pre"></textarea></p>
