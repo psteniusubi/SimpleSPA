@@ -34,7 +34,8 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 ### Send authentication request
 
 This method builds an OpenID Connect authentication request and redirects the web browser to the OpenID Provider. 
-The code also creates a random nonce and stores a copy in local storage.
+
+The code also creates a random nonce and stores a copy in local storage with `window.localStorage.setItem`. I'd prefer using session storage but it appears this is lost in Microsoft Edge when browser is redirected to OpenID Provider.
 
 ```javascript
     function sendAuthenticationRequest(configuration, client_id, scope) {
