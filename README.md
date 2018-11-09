@@ -74,9 +74,11 @@ The following copies query string part from page uri into fragment part. This is
 ```
 
 Here we look for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked. 
+
 The OpenID Provider replies with an access token and an id token.
 The code validates id token integrity and then sets access token and id token into javascript variables. 
-The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
+
+The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event. If a page load was triggered then the javascript variables would be lost.
 
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
