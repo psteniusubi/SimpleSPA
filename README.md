@@ -123,7 +123,7 @@ The following builds and invokes an OAuth authorization code grant token request
 ### Validate ID Token integrity
 
 ID Token is formatted as JWT, with three base64url encoded segments separated by "." character. The first part contains header, second part contains claims and final part is the signature which covers the first and second part.
-The WebCrypto API works with Uint8Array types so some type conversion with Uint8Array.from is needed.
+The WebCrypto API works with ```Uint8Array``` types so some type conversion with ```Uint8Array.from``` is needed.
 
 
 ```javascript
@@ -145,8 +145,8 @@ The WebCrypto API works with Uint8Array types so some type conversion with Uint8
         ...
 ```
 
-Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with window.crypto.subtle.importKey.
-Then signature verification is attempted with window.crypto.subtle.verify.
+Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with ```window.crypto.subtle.importKey```.
+Then signature verification is attempted with ```window.crypto.subtle.verify```.
 
 ```javascript
         ...
@@ -174,6 +174,8 @@ Then signature verification is attempted with window.crypto.subtle.verify.
 ```
 
 ### Invoke OAuth protected API
+
+When invoking an OAuth protected API the access token is put into the Authorization http request header with the Bearer scheme.
 
 ```javascript
     function invokeApi(access_token) {
