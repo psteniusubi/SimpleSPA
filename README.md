@@ -160,11 +160,10 @@ The final step resets the fragment part of the page uri. This does not trigger a
             ? { "Authorization": "Bearer " + access_token }
             : {};
         return fetch(api_endpoint, { mode: "cors", cache: "no-store", headers: headers })
-            .then(function (response) {
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            });
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
     }
 ```
 
