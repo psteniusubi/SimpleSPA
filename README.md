@@ -200,6 +200,16 @@ In the example below I have hard coded RS256 algorithm. A real world solution ne
         });
 ```
 
+Example
+
+```javascript
+var id_token = ...;
+getConfiguration("https://login.example.ubidemo.com/uas")
+    .then(config => getJWKS(config))
+    .then(jwks => decodeJWT(jwks, id_token))
+    .then(jwt => { ... });
+```
+
 ### Invoke OAuth protected API
 
 When invoking an OAuth protected API the access token is put into the Authorization http request header with the Bearer scheme.
