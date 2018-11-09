@@ -136,9 +136,9 @@ The following builds and invokes an OAuth authorization code grant token request
 Example
 
 ```javascript
-    getConfiguration(issuer)
-        .then(config => getJWKS(config))
-        .then(jwks => { ... });
+getConfiguration("https://login.example.ubidemo.com/uas")
+    .then(config => getJWKS(config))
+    .then(jwks => { ... });
 ```
 
 ### Validate ID Token integrity
