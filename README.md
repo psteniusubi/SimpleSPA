@@ -122,6 +122,8 @@ The following builds and invokes an OAuth authorization code grant token request
 
 ### Get provider keys
 
+The OpenID Provider's public keys are found in a JWKS document found from address specified by jwks_uri metadata property.
+
 ```javascript
     function getJWKS(config) {
         var jwks_uri = config.jwks_uri;
@@ -168,6 +170,10 @@ The WebCrypto API works with ```Uint8Array``` types so some type conversion with
 
 Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with ```window.crypto.subtle.importKey```.
 Then signature verification is attempted with ```window.crypto.subtle.verify```.
+
+Apparently there are some interoperability issues with JWK formatted keys and WebCrypto API which requires some transformation.
+One would assume algorithm and key identifiers of JWK, JWS and WebCrypto would be compatible but that appear to not be the case. 
+In the example below I have hard coded RS256 algorithm. A real world solution needs to map JWK and JWS identifiers into WebCrypto identifiers.
 
 ```javascript
         ...
