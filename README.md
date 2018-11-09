@@ -19,11 +19,10 @@ This method fetches the OpenID Provider metadata configuration information. The 
 ```javascript
     function getConfiguration(issuer) {
         return fetch(issuer + "/.well-known/openid-configuration")
-            .then(function (response) {
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            });
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
     }
 ```
 
@@ -36,7 +35,8 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 
 ### Send authentication request
 
-This method builds an OpenID Connect authentication request and redirects the web browser to the OpenID Provider.
+This method builds an OpenID Connect authentication request and redirects the web browser to the OpenID Provider. 
+The code also creates a random nonce and stores a copy in local storage.
 
 ```javascript
     function sendAuthenticationRequest(configuration, client_id, scope) {
@@ -44,15 +44,15 @@ This method builds an OpenID Connect authentication request and redirects the we
         authorization_request += "?response_type=code";
         authorization_request += "&scope=" + encodeURIComponent(scope);
         authorization_request += "&client_id=" + encodeURIComponent(client_id);
-        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + "/spa.html");
+        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
         if (location.hash.startsWith("#/")) {
             var state = location.hash.substr(1);
             authorization_request += "&state=" + encodeURIComponent(state);
         }
         var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
         authorization_request += "&nonce=" + encodeURIComponent(nonce);
-        window.sessionStorage.setItem("nonce", nonce);
-        location = authorization_request;
+        window.localStorage.setItem("nonce", nonce);
+        location.assign(authorization_request);
     }
 ```
 
@@ -65,38 +65,37 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 
 ### Receive authorization code
 
-This code copies query string part from page uri into fragment part. This is needed if the OpenID Provider does not support fragment response mode. 
+The following copies query string part from page uri into fragment part. This is needed if the OpenID Provider does not support fragment response mode. 
 
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
-        if (location.search.match(/^\?(.*)$/)) {
-            location.replace("/spa.html#" + RegExp.$1);
+        if (location.search.startsWith("?")) {
+            location.replace(location.pathname + "#" + location.search.substr(1));
         }
     });
 ```
 
-This code looks for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked and the returned access token and id token are set into javascript variables. The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
+Here we look for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked. 
+The OpenID Provider replies with an access token and an id token.
+The code validates id token integrity and then sets access token and id token into javascript variables. 
+The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event.
 
 ```javascript
     document.addEventListener("DOMContentLoaded", function () {
-        if (location.hash.match(/(^|#|&)code=([^&]*)($|&)/)) {
-            var code = RegExp.$2;
-            getConfiguration(issuer)
-                .then(config => invokeTokenRequest(config, "public", "public", code))
-                .then(function (response) {
-                    var state = "";
-                    if (location.hash.match(/(^|#|&)state=([^&]*)($|&)/)) {
-                        var t = decodeURIComponent(RegExp.$2);
-                        if (t.startsWith("/")) {
-                            state = t;
-                        }
-                    }
-                    access_token = response.access_token;
-                    id_token = response.id_token;
-                    location.hash = state;
-                });
-        }
-    });
+        matchParam(location.hash, "code")
+            .then(code => getConfiguration(issuer)
+                .then(config => invokeTokenRequest(config, "public", "public", code)
+                    .then(response => getJWKS(config)
+                        .then(jwks => decodeJWT(jwks, response.id_token))
+                        .then(jwt => {
+                            access_token = response.access_token;
+                            id_token_jwt = jwt;
+                            matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
+                                .then(state => location.hash = state);
+                        })
+                    )
+                )
+            );
 ```
 
 ### Invoke token request
@@ -109,27 +108,49 @@ This code looks for an authorization code in the fragment part of the page uri. 
         body += "&code=" + encodeURIComponent(code);
         body += "&client_id=" + encodeURIComponent(client_id);
         body += "&client_secret=" + encodeURIComponent(client_secret);
-        body += "&redirect_uri=" + encodeURIComponent(location.origin + "/spa.html");
+        body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
         return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
-            .then(function (response) {
-                return response.ok
-                    ? response.json()
-                    : Promise.reject(response);
-            })
-            .then(function (response) {
-                return Promise.resolve(response);
-            })
-            .catch(function (error) {
-                return Promise.reject(error);
-            });
+            .then(response => response.ok
+                ? response.json()
+                : Promise.reject(response)
+            );
     }
 ```
 
 ### Validate ID Token integrity
 
 ```javascript
-// TODO
+    function decodeJWT(jwks, jwt) {
+
+        var jws = jwt.split(".");
+
+        var header = atobUrlSafe(jws[0]);
+        header = JSON.parse(header);
+
+        var claims = atobUrlSafe(jws[1]);
+        claims = JSON.parse(claims);
+
+        var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
+
+        var signature = atobUrlSafe(jws[2]);
+        signature = Uint8Array.from(signature, t => t.charCodeAt(0));
+        
+        ...
 ```
+
+```javascript
+                var RS256 = {
+                    name: "RSASSA-PKCS1-v1_5",
+                    hash: { name: "SHA-256" },
+                };
+                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
+                    .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
+                    .then(result => {
+                        ...
+                    });
+
+```
+
 
 ### Invoke OAuth protected API
 
