@@ -219,7 +219,7 @@ When invoking an OAuth protected API the access token is put into the Authorizat
         var headers = (access_token != null)
             ? { "Authorization": "Bearer " + access_token }
             : {};
-        return fetch(api_endpoint, { mode: "cors", cache: "no-store", headers: headers })
+        return fetch("http://localhost:5001/simple", { mode: "cors", cache: "no-store", headers: headers })
             .then(response => response.ok
                 ? response.json()
                 : Promise.reject(response)
