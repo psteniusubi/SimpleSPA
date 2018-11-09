@@ -129,6 +129,15 @@ The following builds and invokes an OAuth authorization code grant token request
     }
 ```
 
+Example
+
+```javascript
+var code = ...;
+getConfiguration("https://login.example.ubidemo.com/uas")
+    .then(config => invokeTokenRequest(config, "public", "public", code))
+    .then(response => { ... });
+```
+
 ### Get provider keys
 
 The OpenID Provider's public keys are found in a JWKS document found from address specified by jwks_uri metadata property.
