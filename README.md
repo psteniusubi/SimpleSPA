@@ -101,6 +101,8 @@ The final step resets the fragment part of the page uri. This does not trigger a
 
 ### Invoke token request
 
+The following builds and invokes an OAuth authorization code grant token request.
+
 ```javascript
     function invokeTokenRequest(configuration, client_id, client_secret, code) {
         var token_endpoint = configuration.token_endpoint;
@@ -119,6 +121,10 @@ The final step resets the fragment part of the page uri. This does not trigger a
 ```
 
 ### Validate ID Token integrity
+
+ID Token is formatted as JWT, with three base64url encoded segments separated by "." character. The first part contains header, second part contains claims and final part is the signature which covers the first and second part.
+The WebCrypto API works with Uint8Array types so some type conversion with Uint8Array.from is needed.
+
 
 ```javascript
     function decodeJWT(jwks, jwt) {
@@ -139,7 +145,19 @@ The final step resets the fragment part of the page uri. This does not trigger a
         ...
 ```
 
+Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with window.crypto.subtle.importKey.
+Then signature verification is attempted with window.crypto.subtle.verify.
+
 ```javascript
+        ...
+
+        var keys = jwks.keys
+            .filter(isSig)
+            .map(toJwk);
+
+        return new Promise(resolve => {
+            for (var i in keys) {
+                var jwk = keys[i];
                 var RS256 = {
                     name: "RSASSA-PKCS1-v1_5",
                     hash: { name: "SHA-256" },
@@ -148,11 +166,12 @@ The final step resets the fragment part of the page uri. This does not trigger a
                     .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
                     .then(result => {
                         if (result) {
-                            ...
+                            resolve(...);
                         }
                     });
+            }
+        });
 ```
-
 
 ### Invoke OAuth protected API
 
