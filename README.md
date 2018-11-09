@@ -96,6 +96,7 @@ The final step resets the fragment part of the page uri. This does not trigger a
                     )
                 )
             );
+    });            
 ```
 
 ### Invoke token request
@@ -146,9 +147,10 @@ The final step resets the fragment part of the page uri. This does not trigger a
                 window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
                     .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
                     .then(result => {
-                        ...
+                        if (result) {
+                            ...
+                        }
                     });
-
 ```
 
 
