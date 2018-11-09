@@ -77,7 +77,7 @@ The following copies query string part from page uri into fragment part. This is
 Here we look for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked. 
 
 The OpenID Provider replies with an access token and an id token.
-The code validates id token integrity and then sets access token and id token into javascript variables. 
+The code validates nonce and id token integrity and then sets access token and id token into javascript variables. 
 
 The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event. If a page load was triggered then the javascript variables would be lost.
 
@@ -89,8 +89,16 @@ The final step resets the fragment part of the page uri. This does not trigger a
                     .then(response => getJWKS(config)
                         .then(jwks => decodeJWT(jwks, response.id_token))
                         .then(jwt => {
-                            access_token = response.access_token;
-                            id_token_jwt = jwt;
+                            var n1 = jwt.claims.nonce;
+                            var n2 = window.localStorage.getItem("nonce");
+                            window.localStorage.clear("nonce");
+                            if (n1 == n2) {                            
+                                access_token = response.access_token;
+                                id_token_jwt = jwt;
+                            } else {
+                                console.warn("invalid nonce");
+                                access_token = id_token_jwt = null;
+                            }
                             matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
                                 .then(state => location.hash = state);
                         })
