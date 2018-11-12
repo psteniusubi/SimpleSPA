@@ -1,5 +1,7 @@
 # JavaScript Single Page Application and Ubisecure SSO
 
+Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for logon and then invokes an OAuth 2.0 protected API.
+
 ## Code review
 
 This project is hosted in a ASP.NET Core Web Application.
