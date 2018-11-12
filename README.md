@@ -249,6 +249,8 @@ When invoking an OAuth protected API the access token is put into the Authorizat
 
 ## Running the application
 
+This application is ready to run with Ubisecure SSO at login.example.ubidemo.com.
+
 ### With ASP.NET Core
 
 1. Clone this repository
