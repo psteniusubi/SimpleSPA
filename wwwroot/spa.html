@@ -204,10 +204,6 @@
         console.log("hashchange hash=" + location.hash + ", access_token=" + access_token);
         $("#id_token").text(JSON.stringify(id_token_jwt.claims, null, 2));
         $("#signature").text(id_token_jwt.signature === true ? "(signature verified)" : "(invalid signature)");
-        var n1 = id_token_jwt.claims.nonce;
-        var n2 = window.localStorage.getItem("nonce");
-        $("#nonce").text(n1 == n2 ? "(nonce verified)" : "(invalid nonce)");
-        window.localStorage.clear("nonce");
     });
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -230,8 +226,20 @@
                     .then(response => getJWKS(config)
                         .then(jwks => decodeJWT(jwks, response.id_token))
                         .then(jwt => {
-                            access_token = response.access_token;
-                            id_token_jwt = jwt;
+                            // verify nonce
+                            var n1 = jwt.claims.nonce;
+                            var n2 = window.localStorage.getItem("nonce");
+                            window.localStorage.clear("nonce");
+                            if (n1 == n2) {
+                                // set tokens into global variables
+                                access_token = response.access_token;
+                                id_token_jwt = jwt;
+                                $("#nonce").text("(nonce verified)");
+                            } else {
+                                console.warn("invalid nonce");
+                                access_token = id_token_jwt = null;
+                                $("#nonce").text("(invalid nonce)");
+                            }
                             matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
                                 .then(state => location.hash = state);
                         })
