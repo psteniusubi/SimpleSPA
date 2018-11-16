@@ -4,9 +4,8 @@
 <script type="text/javascript">
 
     var issuer = "https://login.example.ubidemo.com/uas";
-    var access_token = null;
+    var fetchWithToken = null;
     var id_token_jwt = null;
-
     var api_endpoint = "http://localhost:5001/simple"
 
     function getConfiguration(issuer) {
@@ -188,11 +187,9 @@
 
     }
 
-    function invokeApi(access_token) {
-        var headers = (access_token != null)
-            ? { "Authorization": "Bearer " + access_token }
-            : {};
-        return fetch(api_endpoint, { mode: "cors", cache: "no-store", headers: headers })
+    function invokeApi() {
+        var _fetch = fetchWithToken || window.fetch;
+        return _fetch(api_endpoint, { mode: "cors", cache: "no-store" })
             .then(response => response.ok
                 ? response.json()
                 : Promise.reject(response)
@@ -201,9 +198,9 @@
 
     // receives notifications when fragment part changes
     window.addEventListener("hashchange", function () {
-        console.log("hashchange hash=" + location.hash + ", access_token=" + access_token);
-        $("#id_token").text(JSON.stringify(id_token_jwt.claims, null, 2));
-        $("#signature").text(id_token_jwt.signature === true ? "(signature verified)" : "(invalid signature)");
+        console.log("hashchange hash=" + location.hash + ", id_token=" + id_token_jwt);
+        $("#id_token").text(id_token_jwt ? JSON.stringify(id_token_jwt.claims, null, 2) : "");
+        $("#signature").text(id_token_jwt && (id_token_jwt.signature === true) ? "(signature verified)" : "(invalid signature)");
     });
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -231,13 +228,17 @@
                             var n2 = window.localStorage.getItem("nonce");
                             window.localStorage.clear("nonce");
                             if (n1 == n2) {
-                                // set tokens into global variables
-                                access_token = response.access_token;
+                                var access_token = response.access_token;
+                                fetchWithToken = function (input, init) {
+                                    var request = new Request(input, init);
+                                    request.headers.set("Authorization", "Bearer " + access_token);
+                                    return window.fetch(request);
+                                }
                                 id_token_jwt = jwt;
                                 $("#nonce").text("(nonce verified)");
                             } else {
                                 console.warn("invalid nonce");
-                                access_token = id_token_jwt = null;
+                                fetchWithToken = id_token_jwt = null;
                                 $("#nonce").text("(invalid nonce)");
                             }
                             matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
@@ -250,11 +251,11 @@
 
     $(function () {
 
-        console.log("access_token=" + access_token);
+        console.log("fetchWithToken=" + fetchWithToken);
 
         // click Login button sends browser to Ubisecure SSO
         $("#login").click(function () {
-            access_token = id_token_jwt = null;
+            fetchWithToken = id_token_jwt = null;
             $("#id_token").text("");
             $("#api").text("");
             getConfiguration(issuer)
@@ -264,7 +265,7 @@
         // click API button invokes API request with access token in Authorization header
         $("#invoke").click(function () {
             $("#api").text("");
-            invokeApi(access_token)
+            invokeApi()
                 .then(data => $("#api").text(JSON.stringify(data, null, 2)))
                 .catch(function (error) {
                     if (error.status == 401) {
