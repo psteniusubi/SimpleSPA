@@ -251,6 +251,10 @@ When invoking an OAuth protected API the access token is put into the Authorizat
 
 This application is ready to run with Ubisecure SSO at login.example.ubidemo.com.
 
+### With GitHub Pages
+
+1. Navigate to https://psteniusubi.github.io/SimpleSPA/spa.html
+
 ### With ASP.NET Core
 
 1. Clone this repository
