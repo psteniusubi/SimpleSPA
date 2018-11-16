@@ -1,291 +1,295 @@
 ﻿<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
+    <script type="text/javascript">
 
-<script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
-<script type="text/javascript">
+        var issuer = "https://login.example.ubidemo.com/uas";
+        var fetchWithToken = null;
+        var id_token_jwt = null;
+        var api_endpoint = "http://localhost:5001/simple"
 
-    var issuer = "https://login.example.ubidemo.com/uas";
-    var fetchWithToken = null;
-    var id_token_jwt = null;
-    var api_endpoint = "http://localhost:5001/simple"
-
-    function getConfiguration(issuer) {
-        return fetch(issuer + "/.well-known/openid-configuration")
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-
-    function getJWKS(config) {
-        var jwks_uri = config.jwks_uri;
-        return fetch(jwks_uri)
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-
-    function atobUrlSafe(text) {
-        if (text == null) {
-            return null;
+        function getConfiguration(issuer) {
+            return fetch(issuer + "/.well-known/openid-configuration")
+                .then(response => response.ok
+                    ? response.json()
+                    : Promise.reject(response)
+                );
         }
-        text = text
-            .replace(/\s+/g, "")
-            .replace(/_/g, "/")
-            .replace(/-/g, "+");
-        if (text.length === 0) {
-            return "";
-        }
-        text += "==".substr(0, (4 - text.length % 4) % 4);
-        return atob(text);
-    }
 
-    function matchParam(qs, name, mapper = null) {
-        return new Promise(resolve => {
-            if (qs.startsWith("?")) {
-                qs = qs.substr(1);
-            } else if (qs.startsWith("#")) {
-                qs = qs.substr(1);
+        function getJWKS(config) {
+            var jwks_uri = config.jwks_uri;
+            return fetch(jwks_uri)
+                .then(response => response.ok
+                    ? response.json()
+                    : Promise.reject(response)
+                );
+        }
+
+        function atobUrlSafe(text) {
+            if (text == null) {
+                return null;
             }
-            var re = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
-            if (qs.match(re)) {
-                var s = decodeURIComponent(RegExp.$2);
-                if (mapper) {
-                    s = mapper(s);
+            text = text
+                .replace(/\s+/g, "")
+                .replace(/_/g, "/")
+                .replace(/-/g, "+");
+            if (text.length === 0) {
+                return "";
+            }
+            text += "==".substr(0, (4 - text.length % 4) % 4);
+            return atob(text);
+        }
+
+        function matchParam(qs, name, mapper = null) {
+            return new Promise(resolve => {
+                if (qs.startsWith("?")) {
+                    qs = qs.substr(1);
+                } else if (qs.startsWith("#")) {
+                    qs = qs.substr(1);
                 }
-                if (s != null) {
-                    resolve(s);
-                }
-            } else {
-                if (mapper) {
-                    var s = mapper(null);
+                var re = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+                if (qs.match(re)) {
+                    var s = decodeURIComponent(RegExp.$2);
+                    if (mapper) {
+                        s = mapper(s);
+                    }
                     if (s != null) {
                         resolve(s);
                     }
+                } else {
+                    if (mapper) {
+                        var s = mapper(null);
+                        if (s != null) {
+                            resolve(s);
+                        }
+                    }
                 }
-            }
-        });
-    }
-
-    function sendAuthenticationRequest(configuration, client_id, scope) {
-        var authorization_request = configuration.authorization_endpoint;
-        authorization_request += "?response_type=code";
-        authorization_request += "&scope=" + encodeURIComponent(scope);
-        authorization_request += "&client_id=" + encodeURIComponent(client_id);
-        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
-        if (location.hash.startsWith("#/")) {
-            var state = location.hash.substr(1);
-            authorization_request += "&state=" + encodeURIComponent(state);
-        }
-        var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
-        authorization_request += "&nonce=" + encodeURIComponent(nonce);
-        window.localStorage.setItem("nonce", nonce);
-        location.assign(authorization_request);
-    }
-
-    function invokeTokenRequest(configuration, client_id, client_secret, code) {
-        var token_endpoint = configuration.token_endpoint;
-        var headers = { "Content-Type": "application/x-www-form-urlencoded" };
-        var body = "grant_type=authorization_code";
-        body += "&code=" + encodeURIComponent(code);
-        body += "&client_id=" + encodeURIComponent(client_id);
-        body += "&client_secret=" + encodeURIComponent(client_secret);
-        body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
-        console.log("invokeTokenRequest body " + body);
-        return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            )
-            .then(function (response) {
-                console.log("invokeTokenRequest tokenResponse " + JSON.stringify(response));
-                return Promise.resolve(response);
-            })
-            .catch(function (error) {
-                console.error("invokeTokenRequest error " + error);
-                return Promise.reject(error);
             });
-    }
-
-    function decodeJWT(jwks, jwt) {
-
-        console.log("decodeJWT " + jwt);
-
-        var jws = jwt.split(".");
-
-        var header = atobUrlSafe(jws[0]);
-        header = JSON.parse(header);
-
-        var claims = atobUrlSafe(jws[1]);
-        claims = JSON.parse(claims);
-
-        var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
-
-        var signature = atobUrlSafe(jws[2]);
-        signature = Uint8Array.from(signature, t => t.charCodeAt(0));
-
-        var negative = Promise.resolve({
-            "header": header,
-            "claims": claims,
-            "signature": false,
-            "jwk": null,
-        });
-
-        function isSig(jwk) {
-            return (jwk.use == null || jwk.use == "sig");
         }
 
-        function toJwk(jwk) {
-            return {
-                "kty": jwk.kty,
-                "n": jwk.n,
-                "e": jwk.e
-            };
+        function sendAuthenticationRequest(configuration, client_id, scope) {
+            var authorization_request = configuration.authorization_endpoint;
+            authorization_request += "?response_type=code";
+            authorization_request += "&scope=" + encodeURIComponent(scope);
+            authorization_request += "&client_id=" + encodeURIComponent(client_id);
+            authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
+            if (location.hash.startsWith("#/")) {
+                var state = location.hash.substr(1);
+                authorization_request += "&state=" + encodeURIComponent(state);
+            }
+            var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            authorization_request += "&nonce=" + encodeURIComponent(nonce);
+            window.localStorage.setItem("nonce", nonce);
+            location.assign(authorization_request);
         }
 
-        var keys = jwks.keys
-            .filter(isSig)
-            .map(toJwk);
-
-        var todo = keys.length;
-        if (todo === 0) {
-            return negative;
+        function invokeTokenRequest(configuration, client_id, client_secret, code) {
+            var token_endpoint = configuration.token_endpoint;
+            var headers = { "Content-Type": "application/x-www-form-urlencoded" };
+            var body = "grant_type=authorization_code";
+            body += "&code=" + encodeURIComponent(code);
+            body += "&client_id=" + encodeURIComponent(client_id);
+            body += "&client_secret=" + encodeURIComponent(client_secret);
+            body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
+            console.log("invokeTokenRequest body " + body);
+            return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
+                .then(response => response.ok
+                    ? response.json()
+                    : Promise.reject(response)
+                )
+                .then(function (response) {
+                    console.log("invokeTokenRequest tokenResponse " + JSON.stringify(response));
+                    return Promise.resolve(response);
+                })
+                .catch(function (error) {
+                    console.error("invokeTokenRequest error " + error);
+                    return Promise.reject(error);
+                });
         }
 
-        return new Promise(resolve => {
-            for (var i in keys) {
-                var jwk = keys[i];
-                var RS256 = {
-                    name: "RSASSA-PKCS1-v1_5",
-                    hash: { name: "SHA-256" },
+        function decodeJWT(jwks, jwt) {
+
+            console.log("decodeJWT " + jwt);
+
+            var jws = jwt.split(".");
+
+            var header = atobUrlSafe(jws[0]);
+            header = JSON.parse(header);
+
+            var claims = atobUrlSafe(jws[1]);
+            claims = JSON.parse(claims);
+
+            var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
+
+            var signature = atobUrlSafe(jws[2]);
+            signature = Uint8Array.from(signature, t => t.charCodeAt(0));
+
+            var negative = Promise.resolve({
+                "header": header,
+                "claims": claims,
+                "signature": false,
+                "jwk": null,
+            });
+
+            function isSig(jwk) {
+                return (jwk.use == null || jwk.use == "sig");
+            }
+
+            function toJwk(jwk) {
+                return {
+                    "kty": jwk.kty,
+                    "n": jwk.n,
+                    "e": jwk.e
                 };
-                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
-                    .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
-                    .then(result => {
-                        if (result) {
-                            todo = -1;
-                            resolve({
-                                "header": header,
-                                "claims": claims,
-                                "signature": true,
-                                "jwk": jwk,
-                            });
-                        } else {
+            }
+
+            var keys = jwks.keys
+                .filter(isSig)
+                .map(toJwk);
+
+            var todo = keys.length;
+            if (todo === 0) {
+                return negative;
+            }
+
+            return new Promise(resolve => {
+                for (var i in keys) {
+                    var jwk = keys[i];
+                    var RS256 = {
+                        name: "RSASSA-PKCS1-v1_5",
+                        hash: { name: "SHA-256" },
+                    };
+                    window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
+                        .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
+                        .then(result => {
+                            if (result) {
+                                todo = -1;
+                                resolve({
+                                    "header": header,
+                                    "claims": claims,
+                                    "signature": true,
+                                    "jwk": jwk,
+                                });
+                            } else {
+                                if (--todo === 0) {
+                                    resolve(negative);
+                                }
+                            }
+                        })
+                        .catch(result => {
+                            console.warn("decodeJWT " + result);
                             if (--todo === 0) {
                                 resolve(negative);
                             }
-                        }
-                    })
-                    .catch(result => {
-                        console.warn("decodeJWT " + result);
-                        if (--todo === 0) {
-                            resolve(negative);
-                        }
-                    });
+                        });
+                }
+            });
+
+        }
+
+        function invokeApi() {
+            var _fetch = fetchWithToken || window.fetch;
+            return _fetch(api_endpoint, { mode: "cors", cache: "no-store" })
+                .then(response => response.ok
+                    ? response.json()
+                    : Promise.reject(response)
+                );
+        }
+
+        // receives notifications when fragment part changes
+        window.addEventListener("hashchange", function () {
+            console.log("hashchange hash=" + location.hash + ", id_token=" + id_token_jwt);
+            $("#id_token").text(id_token_jwt ? JSON.stringify(id_token_jwt.claims, null, 2) : "");
+            $("#signature").text(id_token_jwt && (id_token_jwt.signature === true) ? "(signature verified)" : "(invalid signature)");
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            // the page was navigated to with query parameters (/spa.html?code=abcd1234)
+            // this copies query string into fragment part, which is easier to process in single page context
+            if (location.search.startsWith("?")) {
+                console.log("rewrite location.search");
+                location.replace(location.pathname + "#" + location.search.substr(1));
             }
         });
 
-    }
-
-    function invokeApi() {
-        var _fetch = fetchWithToken || window.fetch;
-        return _fetch(api_endpoint, { mode: "cors", cache: "no-store" })
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-
-    // receives notifications when fragment part changes
-    window.addEventListener("hashchange", function () {
-        console.log("hashchange hash=" + location.hash + ", id_token=" + id_token_jwt);
-        $("#id_token").text(id_token_jwt ? JSON.stringify(id_token_jwt.claims, null, 2) : "");
-        $("#signature").text(id_token_jwt && (id_token_jwt.signature === true) ? "(signature verified)" : "(invalid signature)");
-    });
-
-    document.addEventListener("DOMContentLoaded", function () {
-        // the page was navigated to with query parameters (/spa.html?code=abcd1234)
-        // this copies query string into fragment part, which is easier to process in single page context
-        if (location.search.startsWith("?")) {
-            console.log("rewrite location.search");
-            location.replace(location.pathname + "#" + location.search.substr(1));
-        }
-    });
-
-    document.addEventListener("DOMContentLoaded", function () {
-        // looking for fragment part that contains authorization code
-        // if code parameter is found, invoke token request with authorization code to fetch access_token and id_token
-        // the tokens are saved into javascript variables
-        // when complete fragment part is set to empty string or value in state parameter
-        matchParam(location.hash, "code")
-            .then(code => getConfiguration(issuer)
-                .then(config => invokeTokenRequest(config, "public", "public", code)
-                    .then(response => getJWKS(config)
-                        .then(jwks => decodeJWT(jwks, response.id_token))
-                        .then(jwt => {
-                            // verify nonce
-                            var n1 = jwt.claims.nonce;
-                            var n2 = window.localStorage.getItem("nonce");
-                            window.localStorage.clear("nonce");
-                            if (n1 == n2) {
-                                var access_token = response.access_token;
-                                fetchWithToken = function (input, init) {
-                                    var request = new Request(input, init);
-                                    request.headers.set("Authorization", "Bearer " + access_token);
-                                    return window.fetch(request);
+        document.addEventListener("DOMContentLoaded", function () {
+            // looking for fragment part that contains authorization code
+            // if code parameter is found, invoke token request with authorization code to fetch access_token and id_token
+            // the tokens are saved into javascript variables
+            // when complete fragment part is set to empty string or value in state parameter
+            matchParam(location.hash, "code")
+                .then(code => getConfiguration(issuer)
+                    .then(config => invokeTokenRequest(config, "public", "public", code)
+                        .then(response => getJWKS(config)
+                            .then(jwks => decodeJWT(jwks, response.id_token))
+                            .then(jwt => {
+                                // verify nonce
+                                var n1 = jwt.claims.nonce;
+                                var n2 = window.localStorage.getItem("nonce");
+                                window.localStorage.clear("nonce");
+                                if (n1 == n2) {
+                                    var access_token = response.access_token;
+                                    fetchWithToken = function (input, init) {
+                                        var request = new Request(input, init);
+                                        request.headers.set("Authorization", "Bearer " + access_token);
+                                        return window.fetch(request);
+                                    }
+                                    id_token_jwt = jwt;
+                                    $("#nonce").text("(nonce verified)");
+                                } else {
+                                    console.warn("invalid nonce");
+                                    fetchWithToken = id_token_jwt = null;
+                                    $("#nonce").text("(invalid nonce)");
                                 }
-                                id_token_jwt = jwt;
-                                $("#nonce").text("(nonce verified)");
-                            } else {
-                                console.warn("invalid nonce");
-                                fetchWithToken = id_token_jwt = null;
-                                $("#nonce").text("(invalid nonce)");
-                            }
-                            matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
-                                .then(state => location.hash = state);
-                        })
+                                matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
+                                    .then(state => location.hash = state);
+                            })
+                        )
                     )
-                )
-            );
-    });
-
-    $(function () {
-
-        console.log("fetchWithToken=" + fetchWithToken);
-
-        // click Login button sends browser to Ubisecure SSO
-        $("#login").click(function () {
-            fetchWithToken = id_token_jwt = null;
-            $("#id_token").text("");
-            $("#api").text("");
-            getConfiguration(issuer)
-                .then(config => sendAuthenticationRequest(config, "public", "openid api"));
+                );
         });
 
-        // click API button invokes API request with access token in Authorization header
-        $("#invoke").click(function () {
-            $("#api").text("");
-            invokeApi()
-                .then(data => $("#api").text(JSON.stringify(data, null, 2)))
-                .catch(function (error) {
-                    if (error.status == 401) {
-                        $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate"));
-                    } else {
-                        $("#api").text("Make sure API is running. Details: " + error);
-                    }
-                });
+        $(function () {
+
+            console.log("fetchWithToken=" + fetchWithToken);
+
+            // click Login button sends browser to Ubisecure SSO
+            $("#login").click(function () {
+                fetchWithToken = id_token_jwt = null;
+                $("#id_token").text("");
+                $("#api").text("");
+                getConfiguration(issuer)
+                    .then(config => sendAuthenticationRequest(config, "public", "openid api"));
+            });
+
+            // click API button invokes API request with access token in Authorization header
+            $("#invoke").click(function () {
+                $("#api").text("");
+                invokeApi()
+                    .then(data => $("#api").text(JSON.stringify(data, null, 2)))
+                    .catch(function (error) {
+                        if (error.status == 401) {
+                            $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate"));
+                        } else {
+                            $("#api").text("Make sure API is running. Details: " + error);
+                        }
+                    });
+            });
+
         });
 
-    });
+    </script>
+</head>
+<body>
+    <h1>Login</h1>
+    <p><input type="button" id="login" value="Login" /></p>
+    <p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
+    <p><textarea id="id_token" rows="8" cols="80"></textarea></p>
 
-</script>
-
-<h1>Login</h1>
-<p><input type="button" id="login" value="Login" /></p>
-<p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
-<p><textarea id="id_token" rows="8" cols="80"></textarea></p>
-
-<h1>API</h1>
-<p><input type="button" id="invoke" value="Invoke API" /></p>
-<p>API Response</p>
-<p><textarea id="api" rows="6" cols="80" style="white-space: pre"></textarea></p>
+    <h1>API</h1>
+    <p><input type="button" id="invoke" value="Invoke API" /></p>
+    <p>API Response</p>
+    <p><textarea id="api" rows="6" cols="80" style="white-space: pre"></textarea></p>
+</body>
+</html>
