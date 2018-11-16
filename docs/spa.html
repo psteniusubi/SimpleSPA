@@ -7,7 +7,7 @@
         var issuer = "https://login.example.ubidemo.com/uas";
         var fetchWithToken = null;
         var id_token_jwt = null;
-        var api_endpoint = "http://localhost:5001/simple"
+        var api_endpoint = (location.hostname == "localhost") ? "http://localhost:5001/simple" : "https://ubi-simple-api.azurewebsites.net/simple";
 
         function getConfiguration(issuer) {
             return fetch(issuer + "/.well-known/openid-configuration")
@@ -220,7 +220,7 @@
             // when complete fragment part is set to empty string or value in state parameter
             matchParam(location.hash, "code")
                 .then(code => getConfiguration(issuer)
-                    .then(config => invokeTokenRequest(config, "public", "public", code)
+                    .then(config => invokeTokenRequest(config, "SimpleSPA", "public", code)
                         .then(response => getJWKS(config)
                             .then(jwks => decodeJWT(jwks, response.id_token))
                             .then(jwt => {
@@ -260,7 +260,7 @@
                 $("#id_token").text("");
                 $("#api").text("");
                 getConfiguration(issuer)
-                    .then(config => sendAuthenticationRequest(config, "public", "openid api"));
+                    .then(config => sendAuthenticationRequest(config, "SimpleSPA", "openid api"));
             });
 
             // click API button invokes API request with access token in Authorization header
