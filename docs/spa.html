@@ -205,7 +205,7 @@
         });
 
         document.addEventListener("DOMContentLoaded", function () {
-            // the page was navigated to with query parameters (/spa.html?code=abcd1234)
+            // the page was navigated to with query parameters (/spa.html?name=value)
             // this copies query string into fragment part, which is easier to process in single page context
             if (location.search.startsWith("?")) {
                 console.log("rewrite location.search");
@@ -219,6 +219,7 @@
             // the tokens are saved into javascript variables
             // when complete fragment part is set to empty string or value in state parameter
             matchParam(location.hash, "code")
+				// this page was navigated to with authorization code in fragment (/spa.html#code=abcd1234)
                 .then(code => getConfiguration(issuer)
                     .then(config => invokeTokenRequest(config, "SimpleSPA", "public", code)
                         .then(response => getJWKS(config)
