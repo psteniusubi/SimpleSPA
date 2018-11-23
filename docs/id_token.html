@@ -66,8 +66,9 @@
         function toJwk(jwk) {
             return {
                 "kty": jwk.kty,
-                "n" : "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww",
-                //"n": jwk.n,
+                "n": jwk.n,
+                // below "n" value has leading zero removed, importKey works with Chrome
+                //"n" : "hOw_2j_fF9qfJDGMWVS8LdW1FhEgCqggZgxS_-DZ_egUdY1xBc92KbrzHaB8N19pqzYKzeLFymrlYAjunN9ZCy_JzEaH_Q7kbP0RoGtkRi_lHLeY04F64hph-tQY7n5OtHJ57jzyROSqsdwaYWbSnaXzBpfE3T0_8YI36ilNu3JbkwhMZUCYw_iyQdZsna70u2XddkD54ZkDNbW78URi_UY19OUezXL5-iDdkLnI6fKdGmrg09-jOHtkdoCqNxKxp7iDvNz-yUcYyykuM04Nzybo0v2l_I27FcyIzA7TzwRMQQwL5VLQmtt8kIj7IffrF0lg5ENq43eF4P-tTcPkww",
                 "e": jwk.e
             };
         }
