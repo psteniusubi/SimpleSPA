@@ -78,9 +78,16 @@
                 var state = location.hash.substr(1);
                 authorization_request += "&state=" + encodeURIComponent(state);
             }
+            // nonce
             var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
             authorization_request += "&nonce=" + encodeURIComponent(nonce);
             window.localStorage.setItem("nonce", nonce);
+            // code_verifier
+            var code_verifier = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            window.localStorage.setItem("code_verifier", code_verifier);
+            // code_challenge
+            var code_challenge = code_verifier;
+            authorization_request += "&code_challenge=" + encodeURIComponent(code_challenge);
             location.assign(authorization_request);
         }
 
@@ -92,6 +99,10 @@
             body += "&client_id=" + encodeURIComponent(client_id);
             body += "&client_secret=" + encodeURIComponent(client_secret);
             body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
+            var code_verifier = window.localStorage.getItem("code_verifier");
+            if(code_verifier) {
+                body += "&code_verifier=" + encodeURIComponent(code_verifier);
+            }
             console.log("invokeTokenRequest body " + body);
             return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
                 .then(response => response.ok
@@ -105,7 +116,8 @@
                 .catch(function (error) {
                     console.error("invokeTokenRequest error " + error);
                     return Promise.reject(error);
-                });
+                })
+                .finally(() => { window.localStorage.removeItem("code_verifier"); });
         }
 
         function decodeJWT(jwks, jwt) {
@@ -227,8 +239,7 @@
                             .then(jwt => {
                                 // verify nonce
                                 var n1 = jwt.claims.nonce;
-                                var n2 = window.localStorage.getItem("nonce");
-                                window.localStorage.clear("nonce");
+                                var n2 = window.localStorage.getItem("nonce");                                                                
                                 if (n1 == n2) {
                                     var access_token = response.access_token;
                                     fetchWithToken = function (input, init) {
@@ -246,6 +257,7 @@
                                 matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
                                     .then(state => location.hash = state);
                             })
+                            .finally(() => { window.localStorage.removeItem("nonce"); })
                         )
                     )
                 );
