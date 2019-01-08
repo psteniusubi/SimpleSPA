@@ -285,7 +285,7 @@
                 $("#api").text("");
                 getConfiguration(issuer)
                     .then(config => sendAuthenticationRequest(config, "SimpleSPA", "openid api"))
-                    .catch(error => $("#id_token").text("Cannot send authentication request: " + error));
+                    .catch(error => $("#id_token").text("Cannot send authentication request. Details: " + error));
             });
 
             // click API button invokes API request with access token in Authorization header
