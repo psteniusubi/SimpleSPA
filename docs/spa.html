@@ -1,6 +1,7 @@
 ﻿<!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="initial-scale=1"></meta>
     <script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
     <script type="text/javascript">
 
@@ -8,6 +9,12 @@
         var fetchWithToken = null;
         var id_token_jwt = null;
         var api_endpoint = (location.hostname == "localhost") ? "http://localhost:5001/simple" : "https://ubi-simple-api.azurewebsites.net/simple";
+        
+        function ping() {
+            return fetch(issuer + "/ping")
+                .catch(Promise.reject("ping request failure"))
+                .then(response => response.ok ? true : Promise.reject("ping invalid status"));
+        }
 
         function getConfiguration(issuer) {
             return fetch(issuer + "/.well-known/openid-configuration")
@@ -266,6 +273,10 @@
         $(function () {
 
             console.log("fetchWithToken=" + fetchWithToken);
+            
+            ping()
+                .then(() => $("#ping").hide())
+                .catch(() => $("#ping").show().text(issuer + " is not responding"));
 
             // click Login button sends browser to Ubisecure SSO
             $("#login").click(function () {
@@ -273,7 +284,8 @@
                 $("#id_token").text("");
                 $("#api").text("");
                 getConfiguration(issuer)
-                    .then(config => sendAuthenticationRequest(config, "SimpleSPA", "openid api"));
+                    .then(config => sendAuthenticationRequest(config, "SimpleSPA", "openid api"))
+                    .catch(error => $("#id_token").text("Cannot send authentication request: " + error));
             });
 
             // click API button invokes API request with access token in Authorization header
@@ -296,6 +308,7 @@
 </head>
 <body>
     <h1>Login</h1>
+    <p id="ping" style="display:none;color:red;"></p>
     <p><input type="button" id="login" value="Login" /></p>
     <p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
     <p><textarea id="id_token" rows="8" cols="80"></textarea></p>
