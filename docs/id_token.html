@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.js"></script>
+<script type="text/javascript" src="base64url.js"></script>
 <script type="text/javascript">
 
     var issuer = "https://login.example.ubidemo.com/uas";
@@ -20,21 +21,6 @@
                     ? response.json()
                     : Promise.reject(response);
             });
-    }
-
-    function atobUrlSafe(text) {
-        if (text == null) {
-            return null;
-        }
-        text = text
-            .replace(/\s+/g, "")
-            .replace(/_/g, "/")
-            .replace(/-/g, "+");
-        if (text.length === 0) {
-            return "";
-        }
-        text += "==".substr(0, text.length % 4);
-        return atob(text);
     }
 
     function decodeJWT(jwks, jwt) {
