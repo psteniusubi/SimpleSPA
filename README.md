@@ -2,7 +2,7 @@
 
 Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for logon and then invokes an OAuth 2.0 protected API.
 
-The code for the API invoked by this application is in [SimpleAPI](../../../SimpleAPI)
+The code for the API invoked by this application is in [SimpleAPI](psteniusubi/SimpleAPI)
 
 ## Code review
 
@@ -10,7 +10,7 @@ This project is hosted in a ASP.NET Core Web Application.
 However this project consist of a single static html file and only the web server function of ASP.NET is used, there is no server-side logic. 
 This project also runs as-is on Apache HTTP server or any other web server that serves static resources, such as GitHub Pages [here](https://psteniusubi.github.io/SimpleSPA/spa.html).
 
-This application is implemented in a single html page [spa.html](wwwroot/spa.html) with a dependency on jQuery from code.jquery.com/jquery-3.3.1.js.
+This application is implemented in a single html page [spa.html](docs/spa.html) with a dependency on jQuery from code.jquery.com/jquery-3.3.1.js.
 
 ### Get provider metadata
 
