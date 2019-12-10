@@ -2,7 +2,7 @@
 
 Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for logon and then invokes an OAuth 2.0 protected API.
 
-The code for the API invoked by this application is in [SimpleAPI](psteniusubi/SimpleAPI)
+The code for the API invoked by this application is in [SimpleAPI](https://github.com/psteniusubi/SimpleAPI)
 
 ## Code review
 
