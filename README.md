@@ -6,9 +6,7 @@ The code for the API invoked by this application is in [SimpleAPI](https://githu
 
 ## Code review
 
-This project is hosted in a ASP.NET Core Web Application.
-However this project consist of a single static html file and only the web server function of ASP.NET is used, there is no server-side logic. 
-This project also runs as-is on Apache HTTP server or any other web server that serves static resources, such as GitHub Pages [here](https://psteniusubi.github.io/SimpleSPA/spa.html).
+This project is hosted on GitHub Pages [here](https://psteniusubi.github.io/SimpleSPA/spa.html). It also runs as-is on Apache HTTP server or any other web server that serves static resources.
 
 This application is implemented in a single html page [spa.html](docs/spa.html) with a dependency on jQuery from code.jquery.com/jquery-3.3.1.js.
 
@@ -254,13 +252,6 @@ This application is ready to run with Ubisecure SSO at login.example.ubidemo.com
 ### With GitHub Pages
 
 1. Navigate to https://psteniusubi.github.io/SimpleSPA/spa.html
-
-### With ASP.NET Core
-
-1. Clone this repository
-1. Install ASP.NET Core runtime from https://www.microsoft.com/net/download
-1. Use `dotnet run` command run ASP.NET Core server
-1. Navigate to http://localhost:5000/spa.html
 
 ### With Apache HTTP server
 
