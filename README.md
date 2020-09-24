@@ -253,9 +253,3 @@ This application is ready to run with Ubisecure SSO at login.example.ubidemo.com
 
 1. Navigate to https://psteniusubi.github.io/SimpleSPA/spa.html
 
-### With Apache HTTP server
-
-1. Clone this repository
-1. Install Apache HTTP server
-1. Use `./run-apache.sh` on Linux or `run-apache.cmd` on Windows to start Apache HTTP server
-1. Navigate to http://localhost:5000/spa.html
