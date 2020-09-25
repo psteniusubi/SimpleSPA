@@ -1,5 +1,54 @@
 ﻿<!DOCTYPE html>
 <html>
+
+<head>
+    <title>Single Page Application</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <link rel="icon" href="/content/favicon.png" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" type="text/css" href="/css/ubisecure.css" referrerpolicy="no-referrer" />
+    <style type="text/css">
+    </style>
+    <script async type="module">
+        import { parsed } from "/modules/document-promises.js";
+        import { set_button_href_handlers } from "/modules/helper-module.js";
+        async function build_page() {
+            await parsed;
+            await set_button_href_handlers();
+        }
+        build_page();
+    </script>
+</head>
+
+<body>
+
+    <header>
+        <nav>
+            <button class="icon-home" href="/" target="_self">Home</button>
+            <button href="/SimpleSPA" target="_self">Single Page Application</button>
+            <button href="https://github.com/psteniusubi/SimpleSPA">Repository</button>
+        </nav>
+        <nav>
+            <button href="https://ubisecure.com" class="ubisecure-standard-logo-h-reverse">&nbsp;</button>
+        </nav>
+    </header>
+
+    <main>
+        <section class="outline">
+            <h1>Single Page Application</h1>
+            <div>
+                <ul>
+                    <li><a href="spa.html">Single Page Demo</a></li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+</body>
+
+</html>
+<!--
+<!DOCTYPE html>
+<html>
 <head>
     <title>psteniusubi.github.io</title>
     <meta name="viewport" content="initial-scale=1"></meta>
@@ -9,3 +58,4 @@
     <p>JavaScript Single Page Application and Ubisecure SSO - <a href="spa.html">spa.html</a></p>
 </body>
 </html>
+-->

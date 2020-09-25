@@ -1,7 +1,30 @@
 ﻿<!DOCTYPE html>
 <html>
+
 <head>
-    <meta name="viewport" content="initial-scale=1"></meta>
+    <title>Single Page Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <link rel="icon" href="/content/favicon.png" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" type="text/css" href="/css/ubisecure.css" referrerpolicy="no-referrer" />
+    <style type="text/css">
+        textarea {
+            height: auto;
+            white-space: pre;
+            word-wrap: normal;
+            word-break: normal;
+            overflow: hidden;
+            font-family: monospace;
+        }
+    </style>
+    <script async type="module">
+        import { parsed } from "/modules/document-promises.js";
+        import { set_button_href_handlers } from "/modules/helper-module.js";
+        async function build_page() {
+            await parsed;
+            await set_button_href_handlers();
+        }
+        build_page();
+    </script>
     <script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.js"></script>
     <script type="text/javascript" src="base64url.js"></script>
     <script type="text/javascript">
@@ -10,7 +33,7 @@
         var fetchWithToken = null;
         var id_token_jwt = null;
         var api_endpoint = (location.hostname == "localhost") ? "http://localhost:5001/simple" : "https://ubi-simple-api.azurewebsites.net/simple";
-        
+
         function ping() {
             return fetch(issuer + "/ping")
                 .catch(Promise.reject("ping request failure"))
@@ -93,7 +116,7 @@
             body += "&client_secret=" + encodeURIComponent(client_secret);
             body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
             var code_verifier = window.localStorage.getItem("code_verifier");
-            if(code_verifier) {
+            if (code_verifier) {
                 body += "&code_verifier=" + encodeURIComponent(code_verifier);
             }
             console.log("invokeTokenRequest body " + body);
@@ -205,7 +228,7 @@
         // receives notifications when fragment part changes
         window.addEventListener("hashchange", function () {
             console.log("hashchange hash=" + location.hash + ", id_token=" + id_token_jwt);
-            $("#id_token").text(id_token_jwt ? JSON.stringify(id_token_jwt.claims, null, 2) : "");
+            $("#id_token").text(id_token_jwt ? JSON.stringify(id_token_jwt.claims, null, 2) : "").trigger("input");
             $("#signature").text(id_token_jwt && (id_token_jwt.signature === true) ? "(signature verified)" : "(invalid signature)");
         });
 
@@ -224,7 +247,7 @@
             // the tokens are saved into javascript variables
             // when complete fragment part is set to empty string or value in state parameter
             matchParam(location.hash, "code")
-				// this page was navigated to with authorization code in fragment (/spa.html#code=abcd1234)
+                // this page was navigated to with authorization code in fragment (/spa.html#code=abcd1234)
                 .then(code => getConfiguration(issuer)
                     .then(config => invokeTokenRequest(config, "SimpleSPA", "public", code)
                         .then(response => getJWKS(config)
@@ -232,7 +255,7 @@
                             .then(jwt => {
                                 // verify nonce
                                 var n1 = jwt.claims.nonce;
-                                var n2 = window.localStorage.getItem("nonce");                                                                
+                                var n2 = window.localStorage.getItem("nonce");
                                 if (n1 == n2) {
                                     var access_token = response.access_token;
                                     fetchWithToken = function (input, init) {
@@ -259,51 +282,85 @@
         $(function () {
 
             console.log("fetchWithToken=" + fetchWithToken);
-            
+
             ping()
                 .then(() => $("#ping").hide())
                 .catch(() => $("#ping").show().text(issuer + " is not responding"));
 
             // click Login button sends browser to Ubisecure SSO
-            $("#login").click(function () {
+            $("#login").click(function (e) {
+                e.preventDefault();
                 fetchWithToken = id_token_jwt = null;
-                $("#id_token").text("");
-                $("#api").text("");
+                $("#id_token").text("").trigger("input");
+                $("#api").text("").trigger("input");
                 getConfiguration(issuer)
                     .then(config => sendAuthenticationRequest(config, "SimpleSPA", "openid api"))
-                    .catch(error => $("#id_token").text("Cannot send authentication request. Details: " + error));
+                    .catch(error => $("#id_token").text("Cannot send authentication request. Details: " + error).trigger("input"));
             });
 
             // click API button invokes API request with access token in Authorization header
-            $("#invoke").click(function () {
-                $("#api").text("");
+            $("#invoke").click(function (e) {
+                e.preventDefault();
+                $("#api").text("").trigger("input");
                 invokeApi()
-                    .then(data => $("#api").text(JSON.stringify(data, null, 2)))
+                    .then(data => $("#api").text(JSON.stringify(data, null, 2)).trigger("input"))
                     .catch(function (error) {
                         if (error.status == 401) {
-                            $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate"));
+                            $("#api").text("First click login. Details: " + error.headers.get("WWW-Authenticate")).trigger("input");
                         } else {
-                            $("#api").text("Make sure API is running. Details: " + error);
+                            $("#api").text("Make sure API is running. Details: " + error).trigger("input");
                         }
                     });
             });
 
+            $("textarea").on("input", e => {
+                console.log("textarea input " + e.target.id);
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+            });
         });
 
     </script>
 </head>
-<body>
-    <h1>Login</h1>
-    <p id="ping" style="display:none;color:red;"></p>
-    <p><input type="button" id="login" value="Login" /></p>
-    <p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
-    <p><textarea id="id_token" rows="8" cols="80"></textarea></p>
-    <p>Source code of Login: <a href="https://github.com/psteniusubi/SimpleSPA">https://github.com/psteniusubi/SimpleSPA</a></p>
 
-    <h1>API</h1>
-    <p><input type="button" id="invoke" value="Invoke API" /></p>
-    <p>API Response</p>
-    <p><textarea id="api" rows="6" cols="80" style="white-space: pre"></textarea></p>
-    <p>Source code of API: <a href="https://github.com/psteniusubi/SimpleAPI">https://github.com/psteniusubi/SimpleAPI</a></p>
+<body>
+    <header>
+        <nav>
+            <button class="icon-home" href="/" target="_self">Home</button>
+            <button href="/SimpleSPA" target="_self">Single Page Application</button>
+            <button href="https://github.com/psteniusubi/SimpleSPA">Repository</button>
+        </nav>
+        <nav>
+            <button href="https://ubisecure.com" class="ubisecure-standard-logo-h-reverse">&nbsp;</button>
+        </nav>
+    </header>
+
+    <main>
+
+        <section class="outline">
+            <h1>Login</h1>
+            <form>
+                <p id="ping" style="display:none;color:red;"></p>
+                <p><button id="login" type="button">Login</button></p>
+                <p>ID Token <span id="signature"></span> <span id="nonce"></span></p>
+                <p><textarea class="flex1" id="id_token"></textarea></p>
+                <p>Source code of Login: <a
+                        href="https://github.com/psteniusubi/SimpleSPA">https://github.com/psteniusubi/SimpleSPA</a></p>
+            </form>
+        </section>
+
+        <section class="outline">
+            <h1>API</h1>
+            <form>
+                <p><button id="invoke" type="button">Invoke API</button></p>
+                <p>API Response</p>
+                <p><textarea class="flex1" id="api" style="white-space: pre"></textarea></p>
+                <p>Source code of API: <a
+                        href="https://github.com/psteniusubi/SimpleAPI">https://github.com/psteniusubi/SimpleAPI</a></p>
+            </form>
+        </section>
+
+    </main>
 </body>
+
 </html>
