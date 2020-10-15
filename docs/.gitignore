@@ -1,0 +1,5 @@
+*
+!.gitignore
+!base64url.js
+!index.html
+!spa.html
