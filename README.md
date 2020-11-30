@@ -147,13 +147,6 @@ The WebCrypto API works with `Uint8Array` types so some type conversion with `Ui
             const claims = JSON.parse(atobUrlSafe(jws[1]));
             const text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
             const signature = Uint8Array.from(atobUrlSafe(jws[2]), t => t.charCodeAt(0));
-
-            const negative = {
-                "header": header,
-                "claims": claims,
-                "signature": false,
-                "jwk": null,
-            };
 ```
 
 Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with `window.crypto.subtle.importKey`.
@@ -164,18 +157,6 @@ One would assume algorithm and key identifiers of JWK, JWS and WebCrypto would b
 In the example below I have hard coded RS256 algorithm. A real world solution needs to map JWK and JWS identifiers into WebCrypto identifiers.
 
 ```javascript
-            function isSig(jwk) {
-                return (jwk.use == null || jwk.use == "sig");
-            }
-
-            function toJwk(jwk) {
-                return {
-                    "kty": jwk.kty,
-                    "n": jwk.n,
-                    "e": jwk.e
-                };
-            }
-
             const keys = jwks.keys
                 .filter(isSig)
                 .map(toJwk);
