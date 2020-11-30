@@ -12,7 +12,7 @@ This application is implemented in a single html page [spa.html](docs/spa.html).
 
 ### Get provider metadata
 
-This method fetches the OpenID Provider metadata configuration information. The method returns a Promise that receives a Json object. The issuer parameter is the name of the OpenID Provider. 
+This method fetches the OpenID Provider metadata configuration information. The issuer parameter is the name of the OpenID Provider. 
 
 ```javascript
         async function getConfiguration(issuer) {
@@ -53,11 +53,11 @@ The code also creates a random nonce and stores a copy in local storage with `wi
 
 ### Handle authorization response
 
-The OpenID Provider redirects user agent back, with authorization response message containing either code or error parameters.
+The OpenID Provider redirects user agent back with authorization response message, containing either `code` or `error` parameters.
 
-This code looks for code or error url parameters, then uses window.history.replaceState to remove url parameters from history. 
+This code looks for code or error url parameters, then uses `window.history.replaceState` to remove url parameters from history. 
 
-If a code parameter is present a token request is issued.
+If a code parameter is present then a token request is issued.
 
 ```javascript
         async function handleAuthenticationResponse() {
@@ -123,7 +123,7 @@ The following builds and invokes an OAuth authorization code grant token request
 
 ### Get provider keys
 
-The OpenID Provider's public keys are found in a JWKS document found from address specified by jwks_uri metadata property.
+The OpenID Provider's public keys are found in a JWKS document found from address specified by `jwks_uri` metadata property.
 
 ```javascript
         async function getJWKS(config) {
@@ -137,7 +137,7 @@ The OpenID Provider's public keys are found in a JWKS document found from addres
 ### Validate ID Token integrity
 
 ID Token is formatted as JWT, with three base64url encoded segments separated by "." character. The first part contains header, second part contains claims and final part is the signature which covers the first and second part.
-The WebCrypto API works with ```Uint8Array``` types so some type conversion with ```Uint8Array.from``` is needed.
+The WebCrypto API works with `Uint8Array` types so some type conversion with `Uint8Array.from` is needed.
 
 ```javascript
         async function decodeJWT(jwks, jwt) {
@@ -156,8 +156,8 @@ The WebCrypto API works with ```Uint8Array``` types so some type conversion with
             };
 ```
 
-Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with ```window.crypto.subtle.importKey```.
-Then signature verification is attempted with ```window.crypto.subtle.verify```.
+Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with `window.crypto.subtle.importKey`.
+Then signature verification is attempted with `window.crypto.subtle.verify`.
 
 Apparently there are some interoperability issues with JWK formatted keys and WebCrypto API which requires some transformation.
 One would assume algorithm and key identifiers of JWK, JWS and WebCrypto would be compatible but that appear to not be the case. 
