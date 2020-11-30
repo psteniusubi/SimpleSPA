@@ -8,27 +8,19 @@ The code for the API invoked by this application is in [SimpleAPI](https://githu
 
 This project is hosted on GitHub Pages [here](https://psteniusubi.github.io/SimpleSPA/spa.html). It also runs as-is on Apache HTTP server or any other web server that serves static resources.
 
-This application is implemented in a single html page [spa.html](docs/spa.html) with a dependency on jQuery from code.jquery.com/jquery-3.3.1.js.
+This application is implemented in a single html page [spa.html](docs/spa.html).
 
 ### Get provider metadata
 
 This method fetches the OpenID Provider metadata configuration information. The method returns a Promise that receives a Json object. The issuer parameter is the name of the OpenID Provider. 
 
 ```javascript
-    function getConfiguration(issuer) {
-        return fetch(issuer + "/.well-known/openid-configuration")
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-```
-
-Example
-
-```javascript
-getConfiguration("https://login.example.ubidemo.com/uas")
-    .then(config => { ... });
+        async function getConfiguration(issuer) {
+            const uri = `${issuer}/.well-known/openid-configuration`;
+            const response = await fetch(uri);
+            if (!response.ok) throw { error: "http_error", response: response };
+            return await response.json();
+        }
 ```
 
 ### Send authentication request
@@ -38,74 +30,67 @@ This method builds an OpenID Connect authentication request and redirects the we
 The code also creates a random nonce and stores a copy in local storage with `window.localStorage.setItem`. I'd prefer using session storage but it appears this is lost in Microsoft Edge when browser is redirected to OpenID Provider.
 
 ```javascript
-    function sendAuthenticationRequest(configuration, client_id, scope) {
-        var authorization_request = configuration.authorization_endpoint;
-        authorization_request += "?response_type=code";
-        authorization_request += "&scope=" + encodeURIComponent(scope);
-        authorization_request += "&client_id=" + encodeURIComponent(client_id);
-        authorization_request += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
-        if (location.hash.startsWith("#/")) {
-            var state = location.hash.substr(1);
-            authorization_request += "&state=" + encodeURIComponent(state);
+        async function sendAuthenticationRequest(configuration, client_id, scope) {
+            const authorization_request = new URL(configuration.authorization_endpoint);
+            authorization_request.searchParams.set("response_type", "code");
+            authorization_request.searchParams.set("scope", scope);
+            authorization_request.searchParams.set("client_id", client_id);
+            authorization_request.searchParams.set("redirect_uri", location.origin + location.pathname);
+            // nonce
+            const nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            authorization_request.searchParams.set("nonce", nonce);
+            window.localStorage.setItem("/SimpleSPA#nonce", nonce);
+            // code_verifier
+            const code_verifier = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            window.localStorage.setItem("/SimpleSPA#code_verifier", code_verifier);
+            // code_challenge
+            const code_challenge = code_verifier;
+            authorization_request.searchParams.set("code_challenge", code_challenge);
+            authorization_request.searchParams.set("code_challenge_method", "plain");
+            location.assign(authorization_request);
         }
-        var nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
-        authorization_request += "&nonce=" + encodeURIComponent(nonce);
-        window.localStorage.setItem("nonce", nonce);
-        location.assign(authorization_request);
-    }
 ```
 
-Example
+### Handle authorization response
+
+The OpenID Provider redirects user agent back, with authorization response message containing either code or error parameters.
+
+This code looks for code or error url parameters, then uses window.history.replaceState to remove url parameters from history. 
+
+If a code parameter is present a token request is issued.
 
 ```javascript
-getConfiguration("https://login.example.ubidemo.com/uas")
-    .then(config => sendAuthenticationRequest(config, "public", "openid"));
-```
-
-### Receive authorization code
-
-The following copies query string part from page uri into fragment part. This is needed if the OpenID Provider does not support fragment response mode. 
-
-```javascript
-    document.addEventListener("DOMContentLoaded", function () {
-        if (location.search.startsWith("?")) {
-            location.replace(location.pathname + "#" + location.search.substr(1));
+        async function handleAuthenticationResponse() {
+            const params = new URLSearchParams(location.search.substr(1));
+            if (params.has("code")) {
+                window.history.replaceState(null, null, location.pathname);
+                const config = await getConfiguration(registration.issuer);
+                const tokenResponse = await invokeTokenRequest(config, registration.client_id, registration.client_secret, params.get("code"));
+                if ("id_token" in tokenResponse) {
+                    const jwks = await getJWKS(config);
+                    const id_token = await decodeJWT(jwks, tokenResponse.id_token);
+                    const signature_status = (id_token.signature === true) ? "signature verified" : "invalid signature";
+                    document.getElementById("signature").innerText = `(${signature_status})`;
+                    set_value("id_token", JSON.stringify(id_token.claims, null, 2));
+                    const nonce_status = (id_token.claims.nonce == localStorage.getItem("/SimpleSPA#nonce")) ? "nonce verified" : "invalid nonce";
+                    document.getElementById("nonce").innerText = `(${nonce_status})`;
+                    localStorage.removeItem("/SimpleSPA#nonce");
+                }
+                if ("access_token" in tokenResponse) {
+                    fetchWithToken = (input, init) => {
+                        var request = new Request(input, init);
+                        request.headers.set("Authorization", "Bearer " + tokenResponse.access_token);
+                        return window.fetch(request);
+                    };
+                } else {
+                    fetchWithToken = null;
+                }
+                return;
+            }
+            if (params.has("error")) {
+                set_value("id_token", `error=${params.get("error")}`);
+            }
         }
-    });
-```
-
-Here we look for an authorization code in the fragment part of the page uri. If a code is found then a token request is invoked. 
-
-The OpenID Provider replies with an access token and an id token.
-The code validates nonce and id token integrity and then sets access token and id token into javascript variables. 
-
-The final step resets the fragment part of the page uri. This does not trigger a page load, but triggers the hashchange event. If a page load was triggered then the javascript variables would be lost.
-
-```javascript
-    document.addEventListener("DOMContentLoaded", function () {
-        matchParam(location.hash, "code")
-            .then(code => getConfiguration(issuer)
-                .then(config => invokeTokenRequest(config, "public", "public", code)
-                    .then(response => getJWKS(config)
-                        .then(jwks => decodeJWT(jwks, response.id_token))
-                        .then(jwt => {
-                            var n1 = jwt.claims.nonce;
-                            var n2 = window.localStorage.getItem("nonce");
-                            window.localStorage.clear("nonce");
-                            if (n1 == n2) {                            
-                                access_token = response.access_token;
-                                id_token_jwt = jwt;
-                            } else {
-                                console.warn("invalid nonce");
-                                access_token = id_token_jwt = null;
-                            }
-                            matchParam(location.hash, "state", state => (state != null) && state.startsWith("/") ? state : "")
-                                .then(state => location.hash = state);
-                        })
-                    )
-                )
-            );
-    });            
 ```
 
 ### Invoke token request
@@ -113,29 +98,27 @@ The final step resets the fragment part of the page uri. This does not trigger a
 The following builds and invokes an OAuth authorization code grant token request.
 
 ```javascript
-    function invokeTokenRequest(configuration, client_id, client_secret, code) {
-        var token_endpoint = configuration.token_endpoint;
-        var headers = { "Content-Type": "application/x-www-form-urlencoded" };
-        var body = "grant_type=authorization_code";
-        body += "&code=" + encodeURIComponent(code);
-        body += "&client_id=" + encodeURIComponent(client_id);
-        body += "&client_secret=" + encodeURIComponent(client_secret);
-        body += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
-        return fetch(token_endpoint, { mode: "cors", cache: "no-store", method: "POST", headers: headers, body: body })
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-```
-
-Example
-
-```javascript
-var code = ...;
-getConfiguration("https://login.example.ubidemo.com/uas")
-    .then(config => invokeTokenRequest(config, "public", "public", code))
-    .then(response => { ... });
+        async function invokeTokenRequest(configuration, client_id, client_secret, code) {
+            const token_endpoint = configuration.token_endpoint;
+            const headers = { "Content-Type": "application/x-www-form-urlencoded" };
+            const body = new URLSearchParams();
+            body.set("grant_type", "authorization_code");
+            body.set("code", code);
+            body.set("client_id", client_id);
+            body.set("client_secret", client_secret);
+            body.set("redirect_uri", location.origin + location.pathname);
+            const code_verifier = window.localStorage.getItem("/SimpleSPA#code_verifier");
+            if (code_verifier) {
+                body.set("code_verifier", code_verifier);
+            }
+            try {
+                const response = await fetch(token_endpoint, { method: "POST", mode: "cors", headers: headers, body: body.toString() });
+                if (!response.ok) throw { error: "http_error", response: response };
+                return await response.json();
+            } finally {
+                window.localStorage.removeItem("/SimpleSPA#code_verifier");
+            }
+        }
 ```
 
 ### Get provider keys
@@ -143,22 +126,12 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 The OpenID Provider's public keys are found in a JWKS document found from address specified by jwks_uri metadata property.
 
 ```javascript
-    function getJWKS(config) {
-        var jwks_uri = config.jwks_uri;
-        return fetch(jwks_uri)
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
-```
-
-Example
-
-```javascript
-getConfiguration("https://login.example.ubidemo.com/uas")
-    .then(config => getJWKS(config))
-    .then(jwks => { ... });
+        async function getJWKS(config) {
+            const uri = config.jwks_uri;
+            const response = await fetch(uri);
+            if (!response.ok) throw { error: "http_error", response: response };
+            return await response.json();
+        }
 ```
 
 ### Validate ID Token integrity
@@ -166,24 +139,21 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 ID Token is formatted as JWT, with three base64url encoded segments separated by "." character. The first part contains header, second part contains claims and final part is the signature which covers the first and second part.
 The WebCrypto API works with ```Uint8Array``` types so some type conversion with ```Uint8Array.from``` is needed.
 
-
 ```javascript
-    function decodeJWT(jwks, jwt) {
+        async function decodeJWT(jwks, jwt) {
 
-        var jws = jwt.split(".");
+            const jws = jwt.split(".");
+            const header = JSON.parse(atobUrlSafe(jws[0]));
+            const claims = JSON.parse(atobUrlSafe(jws[1]));
+            const text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
+            const signature = Uint8Array.from(atobUrlSafe(jws[2]), t => t.charCodeAt(0));
 
-        var header = atobUrlSafe(jws[0]);
-        header = JSON.parse(header);
-
-        var claims = atobUrlSafe(jws[1]);
-        claims = JSON.parse(claims);
-
-        var text2verify = Uint8Array.from(jws[0] + "." + jws[1], t => t.charCodeAt(0));
-
-        var signature = atobUrlSafe(jws[2]);
-        signature = Uint8Array.from(signature, t => t.charCodeAt(0));
-        
-        ...
+            const negative = {
+                "header": header,
+                "claims": claims,
+                "signature": false,
+                "jwk": null,
+            };
 ```
 
 Each signing key from OpenID Provider's jwks document is converted into WebCrypto Key with ```window.crypto.subtle.importKey```.
@@ -194,38 +164,46 @@ One would assume algorithm and key identifiers of JWK, JWS and WebCrypto would b
 In the example below I have hard coded RS256 algorithm. A real world solution needs to map JWK and JWS identifiers into WebCrypto identifiers.
 
 ```javascript
-        ...
-
-        var keys = jwks.keys
-            .filter(isSig)
-            .map(toJwk);
-
-        return new Promise(resolve => {
-            for (var i in keys) {
-                var jwk = keys[i];
-                var RS256 = {
-                    name: "RSASSA-PKCS1-v1_5",
-                    hash: { name: "SHA-256" },
-                };
-                window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"])
-                    .then(key => window.crypto.subtle.verify(RS256, key, signature, text2verify))
-                    .then(result => {
-                        if (result) {
-                            resolve(...);
-                        }
-                    });
+            function isSig(jwk) {
+                return (jwk.use == null || jwk.use == "sig");
             }
-        });
-```
 
-Example
+            function toJwk(jwk) {
+                return {
+                    "kty": jwk.kty,
+                    "n": jwk.n,
+                    "e": jwk.e
+                };
+            }
 
-```javascript
-var id_token = ...;
-getConfiguration("https://login.example.ubidemo.com/uas")
-    .then(config => getJWKS(config))
-    .then(jwks => decodeJWT(jwks, id_token))
-    .then(jwt => { ... });
+            const keys = jwks.keys
+                .filter(isSig)
+                .map(toJwk);
+
+            const RS256 = {
+                name: "RSASSA-PKCS1-v1_5",
+                hash: { name: "SHA-256" },
+            };
+
+            for (const jwk of keys) {
+                try {
+                    const key = await window.crypto.subtle.importKey("jwk", jwk, RS256, false, ["verify"]);
+                    const result = await window.crypto.subtle.verify(RS256, key, signature, text2verify);
+                    if (result === true) {
+                        return {
+                            "header": header,
+                            "claims": claims,
+                            "signature": true,
+                            "jwk": jwk,
+                        };
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+            
+            return negative;
+        }
 ```
 
 ### Invoke OAuth protected API
@@ -233,16 +211,11 @@ getConfiguration("https://login.example.ubidemo.com/uas")
 When invoking an OAuth protected API the access token is put into the Authorization http request header with the Bearer scheme.
 
 ```javascript
-    function invokeApi(access_token) {
-        var headers = (access_token != null)
-            ? { "Authorization": "Bearer " + access_token }
-            : {};
-        return fetch("http://localhost:5001/simple", { mode: "cors", cache: "no-store", headers: headers })
-            .then(response => response.ok
-                ? response.json()
-                : Promise.reject(response)
-            );
-    }
+                    fetchWithToken = (input, init) => {
+                        var request = new Request(input, init);
+                        request.headers.set("Authorization", "Bearer " + tokenResponse.access_token);
+                        return window.fetch(request);
+                    };
 ```
 
 ## Running the application

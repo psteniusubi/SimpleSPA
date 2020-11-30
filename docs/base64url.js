@@ -11,9 +11,9 @@ function atobUrlSafe(text) {
         .replace(/\s+/g, "") // removes whitespace such as linefeeds from input encoded string
         .replace(/-/g, "+") // replace '-' with '+'
         .replace(/_/g, "/"); // replace '_' with '/'
-    switch(text.length % 4) {
-        case 2: text += "=="; break; 
-        case 3: text += "="; break; 
+    switch (text.length % 4) {
+        case 2: text += "=="; break;
+        case 3: text += "="; break;
         default: break; // if padding is wrong then eventually the atob call below fails
     }
     return atob(text);
@@ -34,3 +34,5 @@ function btoaUrlSafe(text) {
         .replace(/=+$/, ""); // remove trailing padding characters
     return text;
 }
+
+export { atobUrlSafe, btoaUrlSafe };
