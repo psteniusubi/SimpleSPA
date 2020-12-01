@@ -1,6 +1,8 @@
 # JavaScript Single Page Application and Ubisecure SSO
 
-Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for logon and then invokes an OAuth 2.0 protected API.
+Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for logon and then invokes an OAuth 2.0 protected API. Launch this app by navigating to
+
+https://psteniusubi.github.io/SimpleSPA/spa.html
 
 The code for the API invoked by this application is in [SimpleAPI](https://github.com/psteniusubi/SimpleAPI)
 
