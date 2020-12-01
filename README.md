@@ -4,6 +4,8 @@ Example of a JavaScript Single Page Application that uses OpenID Connect 1.0 for
 
 The code for the API invoked by this application is in [SimpleAPI](https://github.com/psteniusubi/SimpleAPI)
 
+See also my related blog article [Ubisecure SSO and Single Page Applications](https://www.ubisecure.com/single-sign-on/single-page-application-and-openid-connect/).
+
 ## Code review
 
 This project is hosted on GitHub Pages [here](https://psteniusubi.github.io/SimpleSPA/spa.html). It also runs as-is on Apache HTTP server or any other web server that serves static resources.
