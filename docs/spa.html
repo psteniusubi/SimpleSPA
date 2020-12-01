@@ -29,7 +29,7 @@
     <script type="module">
         import { parsed } from "../assets/common/modules/document-promises.js";
         import { set_button_href_handlers } from "../assets/common/modules/helper-module.js";
-        import { atobUrlSafe } from "./base64url.js";
+        import { atobUrlSafe, btoaUrlSafe } from "./base64url.js";
         const registration = {
             issuer: "https://login.example.ubidemo.com/uas",
             client_id: "SimpleSPA",
@@ -66,6 +66,35 @@
             if (!response.ok) throw { error: "http_error", response: response };
             return await response.json();
         }
+        async function newCodeVerifier(method) {
+            switch (method) {
+                case "plain":
+                case "S256":
+                    return btoaUrlSafe(Array.from(window.crypto.getRandomValues(new Uint8Array(32)), t => String.fromCharCode(t)).join(""))
+                case "":
+                case null:
+                    return null;
+                default:
+                    throw "invalid argument";
+            }
+        }
+        async function getCodeChallenge(method, code_verifier) {
+            switch (method) {
+                case "plain":
+                    if (code_verifier === null) throw "invalid argument";
+                    return code_verifier;
+                case "S256":
+                    if (code_verifier === null) throw "invalid argument";
+                    let bytes = Uint8Array.from(code_verifier, t => t.charCodeAt(0));
+                    bytes = await window.crypto.subtle.digest("SHA-256", bytes);
+                    return btoaUrlSafe(Array.from(new Uint8Array(bytes), t => String.fromCharCode(t)).join(""));
+                case "":
+                case null:
+                    return null;
+                default:
+                    throw "invalid argument";
+            }
+        }
         async function sendAuthenticationRequest(configuration, client_id, scope) {
             const authorization_request = new URL(configuration.authorization_endpoint);
             authorization_request.searchParams.set("response_type", "code");
@@ -76,13 +105,15 @@
             const nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
             authorization_request.searchParams.set("nonce", nonce);
             window.localStorage.setItem("/SimpleSPA#nonce", nonce);
+            // code_challenge_method
+            const code_challenge_method = "S256";
+            authorization_request.searchParams.set("code_challenge_method", code_challenge_method);
             // code_verifier
-            const code_verifier = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            const code_verifier = await newCodeVerifier(code_challenge_method);
             window.localStorage.setItem("/SimpleSPA#code_verifier", code_verifier);
             // code_challenge
-            const code_challenge = code_verifier;
+            const code_challenge = await getCodeChallenge(code_challenge_method, code_verifier);
             authorization_request.searchParams.set("code_challenge", code_challenge);
-            authorization_request.searchParams.set("code_challenge_method", "plain");
             location.assign(authorization_request);
         }
         async function invokeTokenRequest(configuration, client_id, client_secret, code) {
@@ -158,7 +189,7 @@
                     // ignore
                 }
             }
-            
+
             return negative;
         }
         async function handleAuthenticationResponse() {

@@ -27,7 +27,48 @@ This method fetches the OpenID Provider metadata configuration information. The 
 
 This method builds an OpenID Connect authentication request and redirects the web browser to the OpenID Provider. 
 
-The code also creates a random nonce and stores a copy in local storage with `window.localStorage.setItem`. I'd prefer using session storage but it appears this is lost in Microsoft Edge when browser is redirected to OpenID Provider.
+The code also creates a random nonce and PKCE code verifier. These items are stored in local storage with `window.localStorage.setItem`. 
+
+Generating PKCE code verifier
+
+```javascript
+        async function newCodeVerifier(method) {
+            switch (method) {
+                case "plain":
+                case "S256":
+                    return btoaUrlSafe(Array.from(window.crypto.getRandomValues(new Uint8Array(32)), t => String.fromCharCode(t)).join(""))
+                case "":
+                case null:
+                    return null;
+                default:
+                    throw "invalid argument";
+            }
+        }
+```
+
+PKCE code challenge
+
+```javascript
+        async function getCodeChallenge(method, code_verifier) {
+            switch (method) {
+                case "plain":
+                    if (code_verifier === null) throw "invalid argument";
+                    return code_verifier;
+                case "S256":
+                    if (code_verifier === null) throw "invalid argument";
+                    let bytes = Uint8Array.from(code_verifier, t => t.charCodeAt(0));
+                    bytes = await window.crypto.subtle.digest("SHA-256", bytes);
+                    return btoaUrlSafe(Array.from(new Uint8Array(bytes), t => String.fromCharCode(t)).join(""));
+                case "":
+                case null:
+                    return null;
+                default:
+                    throw "invalid argument";
+            }
+        }
+```
+
+Authentication request
 
 ```javascript
         async function sendAuthenticationRequest(configuration, client_id, scope) {
@@ -40,13 +81,15 @@ The code also creates a random nonce and stores a copy in local storage with `wi
             const nonce = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
             authorization_request.searchParams.set("nonce", nonce);
             window.localStorage.setItem("/SimpleSPA#nonce", nonce);
+            // code_challenge_method
+            const code_challenge_method = "S256";
+            authorization_request.searchParams.set("code_challenge_method", code_challenge_method);
             // code_verifier
-            const code_verifier = Array.from(window.crypto.getRandomValues(new Uint32Array(4)), t => t.toString(36)).join("");
+            const code_verifier = await newCodeVerifier(code_challenge_method);
             window.localStorage.setItem("/SimpleSPA#code_verifier", code_verifier);
             // code_challenge
-            const code_challenge = code_verifier;
+            const code_challenge = await getCodeChallenge(code_challenge_method, code_verifier);
             authorization_request.searchParams.set("code_challenge", code_challenge);
-            authorization_request.searchParams.set("code_challenge_method", "plain");
             location.assign(authorization_request);
         }
 ```
