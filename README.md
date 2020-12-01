@@ -242,6 +242,15 @@ When invoking an OAuth protected API the access token is put into the Authorizat
                     };
 ```
 
+```javascript
+        async function invokeApi() {
+            const _fetch = fetchWithToken || window.fetch;
+            const response = await _fetch(api_endpoint, { mode: "cors", cache: "no-store" });
+            if (!response.ok) throw { error: "http_error", response: response };
+            return await response.json();
+        }
+```
+
 ## Running the application
 
 This application is ready to run with Ubisecure SSO at login.example.ubidemo.com.
