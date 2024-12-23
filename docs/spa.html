@@ -36,7 +36,7 @@
             client_secret: "public",
             scope: "openid api"
         };
-        const api_endpoint = (location.hostname == "localhost") ? "http://localhost:5001/simple" : "https://ubi-simple-api.azurewebsites.net/simple";
+        const api_endpoint = (location.hostname === "localhost" || location.hostname === "psteniusubi.example.com") ? "http://localhost:5001/simple" : "https://ubi-simple-api.azurewebsites.net/simple";
         let fetchWithToken = null;
         async function ping() {
             try {
